@@ -17,9 +17,14 @@ var hold_pos := Vector3.ZERO
 var col_primary := Color(0.2, 0.4, 0.9)
 var col_secondary := Color(0.1, 0.1, 0.1)
 var col_shorts := Color(0.9, 0.9, 0.9)
+var alt_kit := false                  # kit visitante alternativo si hay choque de colores
 
 var visual: Node3D
 var marker: MeshInstance3D
+var leg_l: Node3D
+var leg_r: Node3D
+var arm_l: Node3D
+var arm_r: Node3D
 var bob_t := 0.0
 
 
@@ -33,7 +38,7 @@ func is_nine() -> bool:
 
 func _ready() -> void:
 	collision_layer = 2
-	collision_mask = 3
+	collision_mask = 1   # solo suelo: los jugadores no se empujan (evita tembleo/pilas)
 	floor_snap_length = 0.3
 	var cs := CollisionShape3D.new()
 	var shape := CapsuleShape3D.new()
@@ -52,51 +57,79 @@ func _mat(c: Color) -> StandardMaterial3D:
 	return m
 
 
+func _capsule(parent: Node3D, r: float, h: float, y: float, mat: Material) -> MeshInstance3D:
+	var mi := MeshInstance3D.new()
+	var m := CapsuleMesh.new()
+	m.radius = r
+	m.height = h
+	mi.mesh = m
+	mi.position.y = y
+	mi.material_override = mat
+	parent.add_child(mi)
+	return mi
+
+
+func _box(parent: Node3D, size: Vector3, pos: Vector3, mat: Material) -> MeshInstance3D:
+	var mi := MeshInstance3D.new()
+	var m := BoxMesh.new()
+	m.size = size
+	mi.mesh = m
+	mi.position = pos
+	mi.material_override = mat
+	parent.add_child(mi)
+	return mi
+
+
 func _build_visual() -> void:
 	visual = Node3D.new()
 	add_child(visual)
-	var r := 0.4 if is_forward() else 0.34
+	var bulk := 1.08 if is_forward() else 0.94
+	var jersey := col_secondary if alt_kit else col_primary
+	var trim := col_primary if alt_kit else col_secondary
+	# tono de piel variado por jugador
+	var skin_t := fmod(float(index * 7 + team * 3), 10.0) / 10.0
+	var skin := Color(0.93, 0.78, 0.62).lerp(Color(0.42, 0.29, 0.18), skin_t)
+	var skin_mat := _mat(skin)
+	var jersey_mat := _mat(jersey)
+	var trim_mat := _mat(trim)
+	var shorts_mat := _mat(col_shorts)
 
-	var body := MeshInstance3D.new()
-	var cap := CapsuleMesh.new()
-	cap.radius = r
-	cap.height = 1.5
-	body.mesh = cap
-	body.position.y = 0.95
-	body.material_override = _mat(col_primary)
-	visual.add_child(body)
-
-	# banda de la camiseta (segundo color del club)
-	var band := MeshInstance3D.new()
-	var bm := CylinderMesh.new()
-	bm.top_radius = r + 0.02
-	bm.bottom_radius = r + 0.02
-	bm.height = 0.24
-	band.mesh = bm
-	band.position.y = 1.18
-	band.material_override = _mat(col_secondary)
-	visual.add_child(band)
+	# piernas (pivote en la cadera para animar la zancada)
+	for side in [-1.0, 1.0]:
+		var leg := Node3D.new()
+		leg.position = Vector3(side * 0.13 * bulk, 0.98, 0.0)
+		visual.add_child(leg)
+		_capsule(leg, 0.1, 0.62, -0.4, skin_mat)
+		_capsule(leg, 0.105, 0.22, -0.66, trim_mat)     # medias
+		_box(leg, Vector3(0.2, 0.1, 0.3), Vector3(0, -0.9, 0.05), _mat(Color(0.15, 0.15, 0.15)))  # botines
+		if side < 0.0:
+			leg_l = leg
+		else:
+			leg_r = leg
 
 	# pantalón
-	var shorts := MeshInstance3D.new()
-	var shm := CylinderMesh.new()
-	shm.top_radius = r + 0.01
-	shm.bottom_radius = r - 0.05
-	shm.height = 0.34
-	shorts.mesh = shm
-	shorts.position.y = 0.5
-	shorts.material_override = _mat(col_shorts)
-	visual.add_child(shorts)
+	_box(visual, Vector3(0.42 * bulk, 0.3, 0.32 * bulk), Vector3(0, 1.02, 0), shorts_mat)
 
-	var head := MeshInstance3D.new()
-	var sm := SphereMesh.new()
-	sm.radius = 0.21
-	sm.height = 0.42
-	head.mesh = sm
-	head.position.y = 1.88
-	head.material_override = _mat(Color(0.85, 0.68, 0.52))
-	visual.add_child(head)
+	# torso + banda de la camiseta
+	_box(visual, Vector3(0.48 * bulk, 0.62, 0.3 * bulk), Vector3(0, 1.38, 0), jersey_mat)
+	_box(visual, Vector3(0.5 * bulk, 0.16, 0.32 * bulk), Vector3(0, 1.44, 0), trim_mat)
 
+	# brazos (pivote en el hombro)
+	for side in [-1.0, 1.0]:
+		var arm := Node3D.new()
+		arm.position = Vector3(side * (0.28 * bulk + 0.08), 1.6, 0.0)
+		visual.add_child(arm)
+		_capsule(arm, 0.085, 0.5, -0.28, jersey_mat)   # manga
+		_capsule(arm, 0.075, 0.2, -0.58, skin_mat)     # antebrazo
+		if side < 0.0:
+			arm_l = arm
+		else:
+			arm_r = arm
+
+	# cabeza
+	_capsule(visual, 0.14, 0.3, 1.88, skin_mat)
+
+	# cono marcador del jugador controlado
 	marker = MeshInstance3D.new()
 	var cone := CylinderMesh.new()
 	cone.top_radius = 0.0
@@ -104,7 +137,7 @@ func _build_visual() -> void:
 	cone.height = 0.5
 	marker.mesh = cone
 	marker.rotation.x = PI
-	marker.position.y = 2.6
+	marker.position.y = 2.5
 	marker.material_override = _mat(Color(1.0, 0.85, 0.1))
 	visual.add_child(marker)
 
@@ -114,7 +147,7 @@ func _process(_delta: float) -> void:
 
 
 func carry_point() -> Vector3:
-	return global_position + Vector3(0, 0.95, 0) + facing * 0.45
+	return global_position + Vector3(0, 1.1, 0) + facing * 0.42
 
 
 func _physics_process(delta: float) -> void:
@@ -135,8 +168,10 @@ func _physics_process(delta: float) -> void:
 	_apply_gravity_move(delta)
 
 	var hs := Vector2(velocity.x, velocity.z).length()
-	if hs > 0.5:
-		facing = Vector3(velocity.x, 0.0, velocity.z).normalized()
+	if hs > 0.4:
+		# facing suavizado: evita que el balón/la vista tiemblen
+		facing = facing.lerp(Vector3(velocity.x, 0.0, velocity.z).normalized(),
+			delta * 10.0).normalized()
 	_update_visual(delta, hs)
 	_try_pickup()
 	_try_tackle()
@@ -198,7 +233,6 @@ func _ruck_ai() -> Vector3:
 		if is_forward() and _team_rank(spot) < 3:
 			return _seek(spot, AI_CHASE)
 		return _hold()
-	# defensores: los más cercanos contestan, el resto detrás de la línea de offside
 	if is_forward() and _team_rank(spot) < 2:
 		return _seek(spot + Vector3(0, 0, d * 0.8), AI_CHASE)
 	var lane := -28.0 + index * 4.0
@@ -307,7 +341,6 @@ func _try_pickup() -> void:
 	var dxz := Vector2(b.global_position.x - global_position.x,
 		b.global_position.z - global_position.z).length()
 	if dxz < r:
-		# knock-on: recepción fallida de un pase (solo IA; el defensor siempre intercepta)
 		if b.pass_from != null and b.pass_from.team == team and self != game.controlled:
 			var chance := 0.1 if b.pass_from != game.controlled else 0.04
 			if game.rng.randf() < chance:
@@ -348,18 +381,31 @@ func _do_kick() -> void:
 	game.ball.kicked(self, dir)
 
 
-# ─── Visual ─────────────────────────────────────────────────────────────────
+# ─── Visual (animación de carrera procedural) ───────────────────────────────
 func _update_visual(delta: float, h_speed: float) -> void:
-	bob_t += delta * (4.0 + h_speed)
+	bob_t += delta * (5.0 + h_speed * 0.9)
+	var run := clampf(h_speed / SPRINT_SPEED, 0.0, 1.0)
 	if tackled > 0.0:
-		visual.rotation.x = lerpf(visual.rotation.x, -1.35, delta * 8.0)
-		visual.position.y = lerpf(visual.position.y, -0.45, delta * 8.0)
-	else:
-		visual.rotation.x = lerpf(visual.rotation.x, 0.0, delta * 8.0)
-		visual.position.y = lerpf(visual.position.y, 0.0, delta * 8.0)
-		var run := clampf(h_speed / SPRINT_SPEED, 0.0, 1.0)
-		visual.position.y += absf(sin(bob_t)) * 0.09 * run
-		visual.rotation.x -= run * 0.12
-	if h_speed > 0.5:
-		visual.rotation.y = lerp_angle(visual.rotation.y, atan2(facing.x, facing.z), delta * 10.0)
-	marker.position.y = 2.6 + sin(bob_t * 0.6) * 0.12
+		visual.rotation.x = lerpf(visual.rotation.x, -1.4, delta * 8.0)
+		visual.position.y = lerpf(visual.position.y, -0.7, delta * 8.0)
+		leg_l.rotation.x = lerpf(leg_l.rotation.x, 0.0, delta * 6.0)
+		leg_r.rotation.x = lerpf(leg_r.rotation.x, 0.0, delta * 6.0)
+		arm_l.rotation.x = lerpf(arm_l.rotation.x, 0.0, delta * 6.0)
+		arm_r.rotation.x = lerpf(arm_r.rotation.x, 0.0, delta * 6.0)
+		return
+	visual.rotation.x = lerpf(visual.rotation.x, run * 0.16, delta * 8.0)
+	visual.position.y = lerpf(visual.position.y, 0.0, delta * 8.0) \
+		+ absf(sin(bob_t)) * 0.05 * run
+	var swing := sin(bob_t) * (0.85 * run)
+	leg_l.rotation.x = swing
+	leg_r.rotation.x = -swing
+	arm_l.rotation.x = -swing * 0.7
+	arm_r.rotation.x = swing * 0.7
+	# cuando tiene el balón, brazos hacia adelante como sosteniéndolo
+	if game != null and game.ball != null and game.ball.carrier == self:
+		arm_l.rotation.x = lerpf(arm_l.rotation.x, -1.1, delta * 10.0)
+		arm_r.rotation.x = lerpf(arm_r.rotation.x, -1.1, delta * 10.0)
+	if h_speed > 0.4:
+		visual.rotation.y = lerp_angle(visual.rotation.y,
+			atan2(facing.x, facing.z), delta * 10.0)
+	marker.position.y = 2.5 + sin(bob_t * 0.6) * 0.12

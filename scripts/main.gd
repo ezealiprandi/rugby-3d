@@ -116,6 +116,10 @@ func _spawn_players() -> void:
 		p.queue_free()
 	players.clear()
 	var clubs: Array = RugbyTeams.CLUBS
+	# choque de camisetas → el visitante usa kit alternativo (color de la banda)
+	var hp: Color = clubs[home_idx]["primary"]
+	var ap: Color = clubs[away_idx]["primary"]
+	var clash := Vector3(hp.r - ap.r, hp.g - ap.g, hp.b - ap.b).length() < 0.45
 	for team in 2:
 		var club: Dictionary = clubs[home_idx if team == 0 else away_idx]
 		for i in TEAM_SIZE:
@@ -127,6 +131,7 @@ func _spawn_players() -> void:
 			p.col_primary = club["primary"]
 			p.col_secondary = club["secondary"]
 			p.col_shorts = club["shorts"]
+			p.alt_kit = team == 1 and clash
 			add_child(p)
 			players.append(p)
 

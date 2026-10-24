@@ -83,15 +83,15 @@ func _build_ground() -> void:
 		mi.position = Vector3(0.0, -0.02, -80.0 + i * 10.0 + 5.0)
 		add_child(mi)
 
-	# in-goal con tono más oscuro y tono levemente distinto
+	# in-goal con tono más oscuro (altura distinta a todo lo demás: sin z-fighting)
 	var ingoal := _mat(Color(0.12, 0.34, 0.17))
 	for s in [-1.0, 1.0]:
 		var mi := MeshInstance3D.new()
 		var mesh := BoxMesh.new()
-		mesh.size = Vector3(W * 2.0, 0.045, DEAD - TRY)
+		mesh.size = Vector3(W * 2.0, 0.014, DEAD - TRY)
 		mi.mesh = mesh
 		mi.material_override = ingoal
-		mi.position = Vector3(0.0, 0.012, s * (TRY + (DEAD - TRY) * 0.5))
+		mi.position = Vector3(0.0, 0.02, s * (TRY + (DEAD - TRY) * 0.5))
 		add_child(mi)
 
 
@@ -103,7 +103,7 @@ func _line(x1: float, z1: float, x2: float, z2: float, w := 0.18) -> void:
 	m.size = Vector3(Vector2(dx, dz).length(), 0.05, w)
 	mi.mesh = m
 	mi.material_override = _mat(WHITE)
-	mi.position = Vector3((x1 + x2) * 0.5, 0.03, (z1 + z2) * 0.5)
+	mi.position = Vector3((x1 + x2) * 0.5, 0.055, (z1 + z2) * 0.5)
 	mi.rotation.y = -atan2(dz, dx)
 	add_child(mi)
 
@@ -270,13 +270,13 @@ func _build_surroundings() -> void:
 	var rm := CylinderMesh.new()
 	rm.top_radius = 6.0
 	rm.bottom_radius = 6.0
-	rm.height = 0.04
+	rm.height = 0.012
 	ring.mesh = rm
 	var ring_mat := _mat(Color(0.95, 0.55, 0.1))
 	ring_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	ring_mat.albedo_color.a = 0.35
 	ring.material_override = ring_mat
-	ring.position = Vector3(0.0, 0.035, 0.0)
+	ring.position = Vector3(0.0, 0.02, 0.0)
 	add_child(ring)
 	var logo := Label3D.new()
 	logo.text = "U R T"
@@ -284,7 +284,7 @@ func _build_surroundings() -> void:
 	logo.pixel_size = 0.06
 	logo.modulate = Color(1.0, 1.0, 1.0, 0.5)
 	logo.rotation.x = -PI / 2.0
-	logo.position = Vector3(0.0, 0.06, 0.0)
+	logo.position = Vector3(0.0, 0.05, 0.0)
 	add_child(logo)
 
 	# cartel en la tribuna principal
@@ -337,18 +337,19 @@ func _build_crowd() -> void:
 	mm.mesh = mesh
 
 	var positions: Array[Vector3] = []
-	# tribuna principal (gradas en +X)
+	# tribuna principal (gradas en +X): espectadores parados SOBRE cada escalón.
+	# Escalón i: centro y = 1.2+i*1.6, alto = 2.4+i*0.4 → tope = 2.4+i*1.8
 	for row in 6:
 		for i in 120:
 			positions.append(Vector3(46.0 + row * 3.0 + rng.randf_range(-0.6, 0.6),
-				3.4 + row * 1.55 + rng.randf_range(0.0, 0.3),
+				2.4 + row * 1.8 + 0.5 + rng.randf_range(0.0, 0.15),
 				-60.0 + i * 1.0 + rng.randf_range(-0.3, 0.3)))
 	# fondos
 	for s in [-1.0, 1.0]:
 		for row in 5:
 			for i in 90:
 				positions.append(Vector3(-45.0 + i * 1.0 + rng.randf_range(-0.3, 0.3),
-					3.4 + row * 1.55 + rng.randf_range(0.0, 0.3),
+					2.4 + row * 1.8 + 0.5 + rng.randf_range(0.0, 0.15),
 					s * (70.0 + row * 3.0) + rng.randf_range(-0.5, 0.5)))
 
 	mm.instance_count = positions.size()

@@ -4,7 +4,7 @@ class_name RugbyMenu
 # Menú principal: título → elegir equipo local → elegir rival → partido.
 # Hecho con contenedores + botones: funciona con mouse y teclado, y se adapta
 # a cualquier resolución de ventana.
-enum Step { HIDDEN, TITLE, HOME, AWAY }
+enum Step { HIDDEN, TITLE, HOME, AWAY, CONTROLS }
 
 var game: RugbyGame
 var step := Step.HIDDEN
@@ -16,6 +16,8 @@ var title_lbl: Label
 var subtitle_lbl: Label
 var prompt_lbl: Label
 var play_btn: Button
+var controls_btn: Button
+var controls_lbl: Label
 var grid: GridContainer
 var buttons: Array[Button] = []
 var footer_lbl: Label
@@ -95,6 +97,37 @@ func _ready() -> void:
 	play_btn.pressed.connect(_on_play_pressed)
 	vb.add_child(play_btn)
 
+	controls_btn = Button.new()
+	controls_btn.text = "CONTROLES"
+	controls_btn.custom_minimum_size = Vector2(280, 48)
+	controls_btn.add_theme_font_size_override("font_size", 24)
+	controls_btn.add_theme_stylebox_override("normal",
+		_btn_style(Color(0.15, 0.18, 0.3), Color(0.5, 0.6, 0.9)))
+	controls_btn.add_theme_stylebox_override("hover",
+		_btn_style(Color(0.22, 0.28, 0.42), Color(0.7, 0.8, 1.0)))
+	controls_btn.add_theme_stylebox_override("pressed",
+		_btn_style(Color(0.1, 0.13, 0.22), Color(0.7, 0.8, 1.0)))
+	controls_btn.add_theme_stylebox_override("focus",
+		_btn_style(Color(0.22, 0.28, 0.42), Color(1.0, 0.85, 0.2)))
+	controls_btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	controls_btn.pressed.connect(_on_controls_pressed)
+	vb.add_child(controls_btn)
+
+	controls_lbl = _lbl(22)
+	controls_lbl.add_theme_color_override("font_color", Color(0.92, 0.95, 0.9))
+	controls_lbl.text = """WASD / Flechas — mover
+Shift — sprint
+Espacio — pasar (¡hacia atrás!)
+K — patada larga
+Espacio ×2 — conversión: dirección y potencia
+Esc — pausa
+R / M — revancha / menú (al final)
+
+El cono amarillo marca tu jugador: el portador en ataque,
+el defensor más cercano al balón en defensa."""
+	controls_lbl.visible = false
+	vb.add_child(controls_lbl)
+
 	grid = GridContainer.new()
 	grid.columns = 2
 	grid.add_theme_constant_override("h_separation", 10)
@@ -143,10 +176,13 @@ func hide_menu() -> void:
 func _update_view() -> void:
 	var clubs: Array = RugbyTeams.CLUBS
 	var is_title := step == Step.TITLE
+	var is_controls := step == Step.CONTROLS
 	title_lbl.visible = is_title
 	subtitle_lbl.visible = is_title
 	play_btn.visible = is_title
-	grid.visible = not is_title
+	controls_btn.visible = is_title
+	grid.visible = step == Step.HOME or step == Step.AWAY
+	controls_lbl.visible = is_controls
 
 	match step:
 		Step.TITLE:
@@ -165,6 +201,9 @@ func _update_view() -> void:
 			footer_lbl.text = "↑↓ mover · Enter/click confirmar · Esc volver"
 			_fill_rows(home_idx)
 			buttons[cursor].grab_focus()
+		Step.CONTROLS:
+			prompt_lbl.text = "CONTROLES"
+			footer_lbl.text = "Esc volver"
 
 
 func _fill_rows(exclude: int) -> void:
@@ -209,7 +248,7 @@ func _move_cursor(delta: int) -> void:
 
 func _back() -> void:
 	match step:
-		Step.HOME:
+		Step.HOME, Step.CONTROLS:
 			step = Step.TITLE
 		Step.AWAY:
 			step = Step.HOME
@@ -220,6 +259,11 @@ func _back() -> void:
 func _on_play_pressed() -> void:
 	step = Step.HOME
 	cursor = 0
+	_update_view()
+
+
+func _on_controls_pressed() -> void:
+	step = Step.CONTROLS
 	_update_view()
 
 
