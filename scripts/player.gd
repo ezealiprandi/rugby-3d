@@ -5,20 +5,30 @@ const BASE_SPEED := 7.4
 const SPRINT_SPEED := 9.8
 const AI_CHASE := 7.8
 const AI_JOG := 6.4
-const SUPPORT_LANES := [-16.0, -8.0, 0.0, 8.0, 16.0]
-const DEF_LANES := [-18.0, -9.0, 0.0, 9.0, 18.0]
 
 var game: RugbyGame
 var team := 0
 var index := 0
+var rating := 1.0
 var tackled := 0.0
 var cool_pass := 0.0
 var facing := Vector3(0, 0, 1)
 var hold_pos := Vector3.ZERO
+var col_primary := Color(0.2, 0.4, 0.9)
+var col_secondary := Color(0.1, 0.1, 0.1)
+var col_shorts := Color(0.9, 0.9, 0.9)
 
 var visual: Node3D
 var marker: MeshInstance3D
 var bob_t := 0.0
+
+
+func is_forward() -> bool:
+	return index < 8
+
+
+func is_nine() -> bool:
+	return index == 8
 
 
 func _ready() -> void:
@@ -27,8 +37,8 @@ func _ready() -> void:
 	floor_snap_length = 0.3
 	var cs := CollisionShape3D.new()
 	var shape := CapsuleShape3D.new()
-	shape.radius = 0.38
-	shape.height = 1.7
+	shape.radius = 0.4 if is_forward() else 0.34
+	shape.height = 1.75
 	cs.shape = shape
 	cs.position.y = 0.85
 	add_child(cs)
@@ -45,34 +55,56 @@ func _mat(c: Color) -> StandardMaterial3D:
 func _build_visual() -> void:
 	visual = Node3D.new()
 	add_child(visual)
+	var r := 0.4 if is_forward() else 0.34
 
 	var body := MeshInstance3D.new()
 	var cap := CapsuleMesh.new()
-	cap.radius = 0.38
+	cap.radius = r
 	cap.height = 1.5
 	body.mesh = cap
-	body.position.y = 0.92
-	body.material_override = _mat(RugbyGame.TEAM_COLORS[team])
+	body.position.y = 0.95
+	body.material_override = _mat(col_primary)
 	visual.add_child(body)
+
+	# banda de la camiseta (segundo color del club)
+	var band := MeshInstance3D.new()
+	var bm := CylinderMesh.new()
+	bm.top_radius = r + 0.02
+	bm.bottom_radius = r + 0.02
+	bm.height = 0.24
+	band.mesh = bm
+	band.position.y = 1.18
+	band.material_override = _mat(col_secondary)
+	visual.add_child(band)
+
+	# pantalón
+	var shorts := MeshInstance3D.new()
+	var shm := CylinderMesh.new()
+	shm.top_radius = r + 0.01
+	shm.bottom_radius = r - 0.05
+	shm.height = 0.34
+	shorts.mesh = shm
+	shorts.position.y = 0.5
+	shorts.material_override = _mat(col_shorts)
+	visual.add_child(shorts)
 
 	var head := MeshInstance3D.new()
 	var sm := SphereMesh.new()
 	sm.radius = 0.21
 	sm.height = 0.42
 	head.mesh = sm
-	head.position.y = 1.82
+	head.position.y = 1.88
 	head.material_override = _mat(Color(0.85, 0.68, 0.52))
 	visual.add_child(head)
 
-	# cono marcador del jugador controlado
 	marker = MeshInstance3D.new()
 	var cone := CylinderMesh.new()
 	cone.top_radius = 0.0
-	cone.bottom_radius = 0.3
-	cone.height = 0.45
+	cone.bottom_radius = 0.32
+	cone.height = 0.5
 	marker.mesh = cone
 	marker.rotation.x = PI
-	marker.position.y = 2.55
+	marker.position.y = 2.6
 	marker.material_override = _mat(Color(1.0, 0.85, 0.1))
 	visual.add_child(marker)
 
@@ -97,7 +129,7 @@ func _physics_process(delta: float) -> void:
 		_update_visual(delta, 0.0)
 		return
 
-	var wish := _desired_velocity(delta)
+	var wish := _desired_velocity()
 	velocity.x = wish.x
 	velocity.z = wish.z
 	_apply_gravity_move(delta)
@@ -118,9 +150,15 @@ func _apply_gravity_move(delta: float) -> void:
 	global_position.y = maxf(0.0, global_position.y)
 
 
-func _desired_velocity(_delta: float) -> Vector3:
-	if game.phase != RugbyGame.Phase.PLAY and game.phase != RugbyGame.Phase.BREAKDOWN:
-		return Vector3.ZERO
+func _desired_velocity() -> Vector3:
+	match game.phase:
+		RugbyGame.Phase.SCRUM, RugbyGame.Phase.LINEOUT:
+			var t := game.get_formation_pos(self)
+			return _seek(t, AI_JOG * 1.1) if t != global_position else Vector3.ZERO
+		RugbyGame.Phase.PLAY, RugbyGame.Phase.BREAKDOWN:
+			pass
+		_:
+			return Vector3.ZERO
 	if game.controlled == self:
 		var iv := Input.get_vector("move_left", "move_right", "move_up", "move_down")
 		var d := game.cam_move_dir(iv)
@@ -137,16 +175,35 @@ func _desired_velocity(_delta: float) -> Vector3:
 # ─── IA ─────────────────────────────────────────────────────────────────────
 func _ai_velocity() -> Vector3:
 	var b := game.ball
+	if game.phase == RugbyGame.Phase.BREAKDOWN:
+		return _ruck_ai()
+	var ai_speed := AI_CHASE * rating
 	if b.carrier == null:
-		# balón suelto: los dos más cercanos de cada equipo van a buscarlo
-		if _team_rank(b.global_position) < 2 and b.global_position.y < 3.2:
-			return _seek(b.global_position, AI_CHASE)
+		if _team_rank(b.global_position) < 3 and b.global_position.y < 3.2:
+			return _seek(b.global_position, ai_speed)
 		return _hold()
 	if b.carrier.team == team:
 		if b.carrier == self:
 			return _carrier_ai()
 		return _support_ai()
 	return _defense_ai()
+
+
+func _ruck_ai() -> Vector3:
+	var spot := game.pending_spot
+	var d := float(game.ruck_dir)
+	if team == game.ruck_team:
+		if is_nine():
+			return _seek(spot - Vector3(0, 0, d * 2.0), AI_CHASE)
+		if is_forward() and _team_rank(spot) < 3:
+			return _seek(spot, AI_CHASE)
+		return _hold()
+	# defensores: los más cercanos contestan, el resto detrás de la línea de offside
+	if is_forward() and _team_rank(spot) < 2:
+		return _seek(spot + Vector3(0, 0, d * 0.8), AI_CHASE)
+	var lane := -28.0 + index * 4.0
+	var behind := spot - Vector3(0, 0, d * 3.0)
+	return _seek(Vector3(clampf(lane, -30, 30), 0.0, behind.z), AI_JOG)
 
 
 func _team_rank(pos: Vector3) -> int:
@@ -174,11 +231,11 @@ func _hold() -> Vector3:
 
 func _carrier_ai() -> Vector3:
 	var d := float(game.attack_dir[team])
-	var goal := Vector3(0.0, 0.0, d * 60.0)
+	var goal := Vector3(0.0, 0.0, d * 62.0)
 	var to := goal - global_position
 	to.y = 0.0
 	var dir := to.normalized()
-	var side := Vector3(-d, 0.0, 0.0)   # lateral relativo a la dirección de ataque
+	var side := Vector3(-d, 0.0, 0.0)
 
 	var nearest_d := 999.0
 	var nearest_rel := Vector3.ZERO
@@ -199,32 +256,29 @@ func _carrier_ai() -> Vector3:
 				nearest_d = dist
 				nearest_rel = rel
 
-	# pase bajo presión (solo a apoyos estrictamente detrás → siempre legal)
 	if nearest_d < 2.8 and cool_pass <= 0.0:
 		var target := game.find_pass_target(self, true)
 		if target != null:
 			game.ball.throw_to(target, self)
-			cool_pass = 1.2
+			cool_pass = 1.1
 			return Vector3.ZERO
 
-	# esquivar al defensor más cercano yendo hacia el lado más libre
 	if nearest_d < 5.5:
 		var evade := side * (1.0 if side.dot(nearest_rel) < 0.0 else -1.0)
 		if (left < right) != (evade.dot(side) > 0.0):
 			evade = -evade
 		dir = (dir * 0.55 + evade * 0.85).normalized()
 
-	return dir * AI_CHASE
+	return dir * AI_CHASE * rating
 
 
 func _support_ai() -> Vector3:
 	var c := game.ball.carrier
 	var d := float(game.attack_dir[team])
-	var lane: float = SUPPORT_LANES[index % 5]
-	var depth := 3.5 + float(index % 3) * 3.0
+	var lane := lerpf(-30.0, 30.0, index / 14.0)
+	var depth := 3.5 + float(index % 4) * 2.5
 	var target := c.global_position + Vector3(lane, 0.0, -d * depth)
-	target.x = clampf(target.x, -30.0, 30.0)
-	# nunca por delante del portador (offside espiritual / línea de pase)
+	target.x = clampf(target.x, -31.0, 31.0)
 	if (target.z - c.global_position.z) * d > -1.5:
 		target.z = c.global_position.z - d * 1.5
 	return _seek(target, AI_JOG)
@@ -233,17 +287,14 @@ func _support_ai() -> Vector3:
 func _defense_ai() -> Vector3:
 	var c := game.ball.carrier
 	var cdir := float(game.attack_dir[c.team])
-	# los dos más cercanos presionan al portador
-	if _team_rank(c.global_position) < 2:
-		return _seek(c.global_position, AI_CHASE)
-	# si el portador ya nos superó, todos persiguen
+	if _team_rank(c.global_position) < 3:
+		return _seek(c.global_position, AI_CHASE * rating)
 	if (global_position.z - c.global_position.z) * cdir < -5.0:
-		return _seek(c.global_position, AI_CHASE * 0.95)
-	# resto: línea defensiva delante del portador
-	var lane: float = DEF_LANES[index % 5]
+		return _seek(c.global_position, AI_CHASE * 0.95 * rating)
+	var lane := lerpf(-32.0, 32.0, index / 14.0)
 	var line_z := clampf(c.global_position.z + cdir * 7.0, -48.0, 48.0)
-	var target := Vector3(clampf(lane + c.global_position.x * 0.35, -31.0, 31.0), 0.0, line_z)
-	return _seek(target, AI_JOG)
+	var target := Vector3(clampf(lane + c.global_position.x * 0.35, -32.0, 32.0), 0.0, line_z)
+	return _seek(target, AI_JOG * rating)
 
 
 func _try_pickup() -> void:
@@ -256,6 +307,12 @@ func _try_pickup() -> void:
 	var dxz := Vector2(b.global_position.x - global_position.x,
 		b.global_position.z - global_position.z).length()
 	if dxz < r:
+		# knock-on: recepción fallida de un pase (solo IA; el defensor siempre intercepta)
+		if b.pass_from != null and b.pass_from.team == team and self != game.controlled:
+			var chance := 0.1 if b.pass_from != game.controlled else 0.04
+			if game.rng.randf() < chance:
+				game.on_knock_on(self)
+				return
 		b.set_carrier(self)
 
 
@@ -265,14 +322,14 @@ func _try_tackle() -> void:
 		return
 	if game.phase != RugbyGame.Phase.PLAY:
 		return
-	if global_position.distance_to(c.global_position) < RugbyGame.TACKLE_RANGE:
+	var reach := RugbyGame.TACKLE_RANGE * (1.0 if game.controlled != self else 1.25)
+	if global_position.distance_to(c.global_position) < reach:
 		game.on_tackle(self, c)
 
 
 func _do_pass() -> void:
 	var target := game.find_pass_target(self, true)
 	if target == null:
-		# sin apoyo detrás: cualquier compañero → si está adelante es pase ilegal
 		target = game.find_pass_target(self, false)
 		if target == null:
 			game.ui.flash_hint("¡Sin compañeros cerca!")
@@ -305,4 +362,4 @@ func _update_visual(delta: float, h_speed: float) -> void:
 		visual.rotation.x -= run * 0.12
 	if h_speed > 0.5:
 		visual.rotation.y = lerp_angle(visual.rotation.y, atan2(facing.x, facing.z), delta * 10.0)
-	marker.position.y = 2.55 + sin(bob_t * 0.6) * 0.12
+	marker.position.y = 2.6 + sin(bob_t * 0.6) * 0.12

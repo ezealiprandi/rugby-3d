@@ -5,6 +5,7 @@ var game: RugbyGame
 var carrier: RugbyPlayer = null
 var release_guard := 0.0
 var last_touch_team := -1
+var pass_from: RugbyPlayer = null   # usado para knock-on en la recepción
 
 
 func _ready() -> void:
@@ -55,6 +56,7 @@ func can_pickup() -> bool:
 func set_carrier(p: RugbyPlayer) -> void:
 	release()
 	carrier = p
+	pass_from = null
 	last_touch_team = p.team
 	linear_velocity = Vector3.ZERO
 	angular_velocity = Vector3.ZERO
@@ -73,6 +75,7 @@ func throw_to(target: RugbyPlayer, thrower: RugbyPlayer) -> void:
 	release()
 	release_guard = 0.2
 	last_touch_team = thrower.team
+	pass_from = thrower
 	global_position = thrower.carry_point()
 	var aim: Vector3 = target.global_position + target.velocity * 0.3 + Vector3(0, 0.9, 0) - global_position
 	var flat := Vector2(aim.x, aim.z).length()
@@ -85,6 +88,7 @@ func kicked(kicker: RugbyPlayer, dir: Vector3) -> void:
 	release()
 	release_guard = 0.3
 	last_touch_team = kicker.team
+	pass_from = null
 	global_position = kicker.carry_point()
 	linear_velocity = dir * 21.0 + Vector3(0, 8.5, 0)
 	angular_velocity = Vector3(dir.z, 0.0, -dir.x) * 14.0

@@ -1,10 +1,11 @@
 extends Node3D
 class_name RugbyField
 
-# Construye todo el entorno visual: césped, líneas, postes, carteles y tribunas.
-const W := 34.0
+# Construye todo el entorno visual: césped, líneas, postes, tribunas con público,
+# torres de luz, banderines de esquina, protectores de postes, bancos y carteles.
+const W := 35.0
 const TRY := 50.0
-const DEAD := 58.0
+const DEAD := 60.0
 const WHITE := Color(0.95, 0.95, 0.92)
 
 static func build(parent: Node3D) -> RugbyField:
@@ -27,6 +28,8 @@ func _build() -> void:
 	_build_lines()
 	_build_posts()
 	_build_surroundings()
+	_build_floodlights()
+	_build_crowd()
 
 
 func _build_env() -> void:
@@ -35,23 +38,24 @@ func _build_env() -> void:
 	env.background_mode = Environment.BG_SKY
 	var sky := Sky.new()
 	var psm := ProceduralSkyMaterial.new()
-	psm.sky_top_color = Color(0.22, 0.42, 0.78)
-	psm.sky_horizon_color = Color(0.62, 0.76, 0.9)
-	psm.ground_bottom_color = Color(0.16, 0.26, 0.16)
-	psm.ground_horizon_color = Color(0.55, 0.68, 0.7)
+	psm.sky_top_color = Color(0.16, 0.3, 0.62)          # tarde-noche
+	psm.sky_horizon_color = Color(0.75, 0.62, 0.5)
+	psm.ground_bottom_color = Color(0.1, 0.16, 0.1)
+	psm.ground_horizon_color = Color(0.45, 0.5, 0.5)
 	sky.sky_material = psm
 	env.sky = sky
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
-	env.ambient_light_energy = 0.7
+	env.ambient_light_energy = 0.75
 	we.environment = env
 	add_child(we)
 
 	var sun := DirectionalLight3D.new()
-	sun.rotation_degrees = Vector3(-55.0, -30.0, 0.0)
+	sun.rotation_degrees = Vector3(-52.0, -25.0, 0.0)
 	sun.shadow_enabled = true
 	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS
-	sun.directional_shadow_max_distance = 180.0
-	sun.light_energy = 1.2
+	sun.directional_shadow_max_distance = 190.0
+	sun.light_energy = 1.1
+	sun.light_color = Color(1.0, 0.92, 0.8)             # luz cálida de atardecer
 	add_child(sun)
 
 
@@ -62,32 +66,32 @@ func _build_ground() -> void:
 	add_child(body)
 	var cs := CollisionShape3D.new()
 	var shape := BoxShape3D.new()
-	shape.size = Vector3(160.0, 1.0, 150.0)
+	shape.size = Vector3(180.0, 1.0, 170.0)
 	cs.shape = shape
 	cs.position = Vector3(0.0, -0.5, 0.0)
 	body.add_child(cs)
 
-	# fajas de césped alternadas (efecto cortina de corte)
-	var green_a := _mat(Color(0.16, 0.42, 0.16))
-	var green_b := _mat(Color(0.2, 0.5, 0.2))
-	for i in 15:
+	# fajas de césped alternadas (efecto corte a lo ancho)
+	var green_a := _mat(Color(0.15, 0.4, 0.15))
+	var green_b := _mat(Color(0.19, 0.48, 0.19))
+	for i in 17:
 		var mi := MeshInstance3D.new()
 		var mesh := BoxMesh.new()
-		mesh.size = Vector3(160.0, 0.06, 10.0)
+		mesh.size = Vector3(180.0, 0.06, 10.0)
 		mi.mesh = mesh
 		mi.material_override = green_a if i % 2 == 0 else green_b
-		mi.position = Vector3(0.0, -0.02, -70.0 + i * 10.0 + 5.0)
+		mi.position = Vector3(0.0, -0.02, -80.0 + i * 10.0 + 5.0)
 		add_child(mi)
 
-	# in-goal con tono más oscuro
-	var ingoal := _mat(Color(0.13, 0.36, 0.18))
+	# in-goal con tono más oscuro y tono levemente distinto
+	var ingoal := _mat(Color(0.12, 0.34, 0.17))
 	for s in [-1.0, 1.0]:
 		var mi := MeshInstance3D.new()
 		var mesh := BoxMesh.new()
-		mesh.size = Vector3(W * 2.0, 0.04, DEAD - TRY)
+		mesh.size = Vector3(W * 2.0, 0.045, DEAD - TRY)
 		mi.mesh = mesh
 		mi.material_override = ingoal
-		mi.position = Vector3(0.0, 0.01, s * (TRY + (DEAD - TRY) * 0.5))
+		mi.position = Vector3(0.0, 0.012, s * (TRY + (DEAD - TRY) * 0.5))
 		add_child(mi)
 
 
@@ -116,20 +120,14 @@ func _dash_line(x1: float, z1: float, x2: float, z2: float, dash := 1.6, gap := 
 
 
 func _build_lines() -> void:
-	# líneas de touch (laterales) y pelota muerta
 	for s in [-1.0, 1.0]:
-		_line(s * W, -TRY, s * W, TRY)
-		_line(-W, s * DEAD, W, s * DEAD)
-		# línea de gol / try
-		_line(-W, s * TRY, W, s * TRY, 0.24)
-		# línea de 22m (a 28 del centro)
-		_line(-W, s * 28.0, W, s * 28.0)
-		# 10m punteada
-		_dash_line(-W, s * 10.0, W, s * 10.0)
-		# 5m punteada junto a cada touch
-		_dash_line(s * (W - 5.0), -TRY, s * (W - 5.0), TRY, 1.2, 1.8)
-	# mitad de cancha
-	_line(-W, 0.0, W, 0.0, 0.24)
+		_line(s * W, -TRY, s * W, TRY)                 # touchlines
+		_line(-W, s * DEAD, W, s * DEAD)               # pelota muerta
+		_line(-W, s * TRY, W, s * TRY, 0.28)           # línea de try
+		_line(-W, s * 28.0, W, s * 28.0)               # 22m
+		_dash_line(-W, s * 10.0, W, s * 10.0)          # 10m
+		_dash_line(s * (W - 5.0), -TRY, s * (W - 5.0), TRY, 1.2, 1.8)   # 5m
+	_line(-W, 0.0, W, 0.0, 0.28)                       # mitad de cancha
 	# marcas de 15m
 	for s in [-1.0, 1.0]:
 		var x: float = s * (W - 15.0)
@@ -138,9 +136,31 @@ func _build_lines() -> void:
 			_line(x, z, x, z + 1.0, 0.14)
 			z += 5.0
 
+	# banderines de esquina (en la unión touch/try)
+	var flag_mat := _mat(Color(1.0, 0.55, 0.1))
+	for sx in [-1.0, 1.0]:
+		for sz in [-1.0, 1.0]:
+			var pole := MeshInstance3D.new()
+			var pm := CylinderMesh.new()
+			pm.top_radius = 0.03
+			pm.bottom_radius = 0.03
+			pm.height = 1.4
+			pole.mesh = pm
+			pole.material_override = flag_mat
+			pole.position = Vector3(sx * W, 0.7, sz * TRY)
+			add_child(pole)
+			var flag := MeshInstance3D.new()
+			var fm := BoxMesh.new()
+			fm.size = Vector3(0.35, 0.22, 0.02)
+			flag.mesh = fm
+			flag.material_override = _mat(Color(0.95, 0.1, 0.1))
+			flag.position = Vector3(sx * W - 0.18, 1.28, sz * TRY)
+			add_child(flag)
+
 
 func _build_posts() -> void:
-	var post_mat := _mat(WHITE, 0.6)
+	var post_mat := _mat(WHITE, 0.55)
+	var pad_mat := _mat(Color(0.1, 0.2, 0.55), 0.9)
 	for s in [-1.0, 1.0]:
 		var body := StaticBody3D.new()
 		body.collision_layer = 1
@@ -152,18 +172,27 @@ func _build_posts() -> void:
 			var m := CylinderMesh.new()
 			m.top_radius = 0.09
 			m.bottom_radius = 0.09
-			m.height = 8.0
+			m.height = 9.0
 			upright.mesh = m
 			upright.material_override = post_mat
-			upright.position = Vector3(px, 4.0, 0.0)
+			upright.position = Vector3(px, 4.5, 0.0)
 			body.add_child(upright)
 			var cs := CollisionShape3D.new()
 			var cyl := CylinderShape3D.new()
-			cyl.radius = 0.12
-			cyl.height = 8.0
+			cyl.radius = 0.13
+			cyl.height = 9.0
 			cs.shape = cyl
-			cs.position = Vector3(px, 4.0, 0.0)
+			cs.position = Vector3(px, 4.5, 0.0)
 			body.add_child(cs)
+			# protector de poste
+			var pad := MeshInstance3D.new()
+			var pdm := BoxMesh.new()
+			pdm.size = Vector3(0.6, 1.2, 0.6)
+			pad.mesh = pdm
+			pad.material_override = pad_mat
+			pad.position = Vector3(px, 0.6, 0.0)
+			body.add_child(pad)
+		# travesaño con colisión real (el balón puede pegar y rebotar)
 		var bar := MeshInstance3D.new()
 		var bm := CylinderMesh.new()
 		bm.top_radius = 0.09
@@ -174,26 +203,17 @@ func _build_posts() -> void:
 		bar.rotation.z = PI / 2.0
 		bar.position = Vector3(0.0, 3.0, 0.0)
 		body.add_child(bar)
+		var bcs := CollisionShape3D.new()
+		var bcyl := CylinderShape3D.new()
+		bcyl.radius = 0.1
+		bcyl.height = 5.8
+		bcs.shape = bcyl
+		bcs.rotation.z = PI / 2.0
+		bcs.position = Vector3(0.0, 3.0, 0.0)
+		body.add_child(bcs)
 
 
-func _build_surroundings() -> void:
-	# vallas publicitarias bajas alrededor de la cancha
-	var ad := _mat(Color(0.9, 0.9, 0.95), 0.7)
-	for s in [-1.0, 1.0]:
-		_add_box(Vector3(0, 0.45, s * (DEAD + 4.0)), Vector3(76.0, 0.9, 0.4), ad)
-		_add_box(Vector3(s * (W + 4.0), 0.45, 0), Vector3(0.4, 0.9, 118.0), ad)
-
-	# tribunas simples (lejos, no bloquean la cámara que está en -X)
-	var stand_mat := _mat(Color(0.25, 0.27, 0.32), 0.85)
-	var seat_mat := _mat(Color(0.7, 0.15, 0.15), 0.85)
-	_add_box(Vector3(52.0, 5.0, 0), Vector3(14.0, 10.0, 120.0), stand_mat)
-	_add_box(Vector3(50.0, 10.5, 0), Vector3(10.0, 1.0, 116.0), seat_mat)
-	for s in [-1.0, 1.0]:
-		_add_box(Vector3(0, 5.0, s * 72.0), Vector3(110.0, 10.0, 14.0), stand_mat)
-		_add_box(Vector3(0, 10.5, s * 70.0), Vector3(106.0, 1.0, 10.0), seat_mat)
-
-
-func _add_box(pos: Vector3, size: Vector3, mat: Material) -> void:
+func _add_box(pos: Vector3, size: Vector3, mat: Material) -> MeshInstance3D:
 	var mi := MeshInstance3D.new()
 	var m := BoxMesh.new()
 	m.size = size
@@ -201,3 +221,141 @@ func _add_box(pos: Vector3, size: Vector3, mat: Material) -> void:
 	mi.material_override = mat
 	mi.position = pos
 	add_child(mi)
+	return mi
+
+
+func _build_surroundings() -> void:
+	# vallas publicitarias alternadas alrededor de la cancha
+	var ads := [_mat(Color(0.92, 0.92, 0.95), 0.7), _mat(Color(0.12, 0.2, 0.5), 0.7),
+		_mat(Color(0.85, 0.1, 0.1), 0.7), _mat(Color(0.95, 0.7, 0.1), 0.7)]
+	var ai := 0
+	for s in [-1.0, 1.0]:
+		var x := -32.0
+		while x < 32.0:
+			_add_box(Vector3(x + 4.0, 0.45, s * (DEAD + 3.5)), Vector3(8.0, 0.9, 0.35), ads[ai % 4])
+			x += 8.0
+			ai += 1
+		var z := -55.0
+		while z < 55.0:
+			_add_box(Vector3(s * (W + 3.5), 0.45, z + 4.0), Vector3(0.35, 0.9, 8.0), ads[ai % 4])
+			z += 8.0
+			ai += 1
+
+	# tribunas con gradas escalonadas
+	var concrete := _mat(Color(0.32, 0.33, 0.36), 0.95)
+	var roof := _mat(Color(0.2, 0.22, 0.28), 0.8)
+	# tribuna principal (lado +X, opuesto a la cámara) con techo
+	for i in 6:
+		_add_box(Vector3(46.0 + i * 3.0, 1.2 + i * 1.6, 0),
+			Vector3(3.0, 2.4 + i * 0.4, 130.0), concrete)
+	_add_box(Vector3(66.0, 15.0, 0), Vector3(8.0, 12.0, 130.0), concrete)
+	_add_box(Vector3(62.0, 21.5, 0), Vector3(22.0, 1.2, 132.0), roof)   # techo
+	# tribunas de fondo
+	for s in [-1.0, 1.0]:
+		for i in 5:
+			_add_box(Vector3(0.0, 1.2 + i * 1.6, s * (70.0 + i * 3.0)),
+				Vector3(120.0, 2.4 + i * 0.4, 3.0), concrete)
+		_add_box(Vector3(0.0, 12.0, s * 88.0), Vector3(120.0, 10.0, 8.0), concrete)
+	# pared baja del lado de la cámara
+	_add_box(Vector3(-46.0, 1.5, 0.0), Vector3(3.0, 3.0, 130.0), concrete)
+
+	# bancos de suplentes (lado de la cámara, bajos)
+	var bench := _mat(Color(0.7, 0.7, 0.72), 0.8)
+	for s in [-1.0, 1.0]:
+		_add_box(Vector3(-40.0, 0.5, s * 18.0), Vector3(2.0, 1.0, 8.0), bench)
+		_add_box(Vector3(-40.8, 1.1, s * 18.0), Vector3(0.4, 1.2, 8.0), bench)
+
+	# logo central de la URT
+	var ring := MeshInstance3D.new()
+	var rm := CylinderMesh.new()
+	rm.top_radius = 6.0
+	rm.bottom_radius = 6.0
+	rm.height = 0.04
+	ring.mesh = rm
+	var ring_mat := _mat(Color(0.95, 0.55, 0.1))
+	ring_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	ring_mat.albedo_color.a = 0.35
+	ring.material_override = ring_mat
+	ring.position = Vector3(0.0, 0.035, 0.0)
+	add_child(ring)
+	var logo := Label3D.new()
+	logo.text = "U R T"
+	logo.font_size = 256
+	logo.pixel_size = 0.06
+	logo.modulate = Color(1.0, 1.0, 1.0, 0.5)
+	logo.rotation.x = -PI / 2.0
+	logo.position = Vector3(0.0, 0.06, 0.0)
+	add_child(logo)
+
+	# cartel en la tribuna principal
+	var cartel := Label3D.new()
+	cartel.text = "UNION DE RUGBY DE TUCUMAN"
+	cartel.font_size = 128
+	cartel.pixel_size = 0.12
+	cartel.modulate = Color(1.0, 0.85, 0.3)
+	cartel.rotation.y = -PI / 2.0
+	cartel.position = Vector3(61.9, 13.0, 0.0)
+	add_child(cartel)
+
+
+func _build_floodlights() -> void:
+	var pole_mat := _mat(Color(0.35, 0.36, 0.4), 0.7)
+	var lamp_mat := StandardMaterial3D.new()
+	lamp_mat.albedo_color = Color(1.0, 1.0, 0.9)
+	lamp_mat.emission_enabled = true
+	lamp_mat.emission = Color(1.0, 0.98, 0.85)
+	lamp_mat.emission_energy_multiplier = 2.0
+	for sx in [-1.0, 1.0]:
+		for sz in [-1.0, 1.0]:
+			var base := Vector3(sx * 52.0, 0.0, sz * 78.0)
+			_add_box(base + Vector3(0, 11.0, 0), Vector3(1.2, 22.0, 1.2), pole_mat)
+			_add_box(base + Vector3(0, 22.6, 0), Vector3(5.0, 2.0, 1.6), pole_mat)
+			for i in 3:
+				var lamp := MeshInstance3D.new()
+				var lm := BoxMesh.new()
+				lm.size = Vector3(1.2, 1.0, 0.4)
+				lamp.mesh = lm
+				lamp.material_override = lamp_mat
+				lamp.position = base + Vector3(-1.5 + i * 1.5, 22.6, -sz * 0.7)
+				add_child(lamp)
+
+
+func _build_crowd() -> void:
+	# público con MultiMesh: un draw call para ~2500 espectadores
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 7
+	var palette := [
+		Color(0.9, 0.2, 0.2), Color(0.95, 0.95, 0.9), Color(0.2, 0.3, 0.7),
+		Color(0.9, 0.6, 0.15), Color(0.15, 0.5, 0.25), Color(0.7, 0.7, 0.75),
+		Color(0.3, 0.3, 0.35), Color(0.95, 0.55, 0.2),
+	]
+	var mm := MultiMesh.new()
+	mm.transform_format = MultiMesh.TRANSFORM_3D
+	mm.use_colors = true
+	var mesh := BoxMesh.new()
+	mesh.size = Vector3(0.5, 0.9, 0.45)
+	mm.mesh = mesh
+
+	var positions: Array[Vector3] = []
+	# tribuna principal (gradas en +X)
+	for row in 6:
+		for i in 120:
+			positions.append(Vector3(46.0 + row * 3.0 + rng.randf_range(-0.6, 0.6),
+				3.4 + row * 1.55 + rng.randf_range(0.0, 0.3),
+				-60.0 + i * 1.0 + rng.randf_range(-0.3, 0.3)))
+	# fondos
+	for s in [-1.0, 1.0]:
+		for row in 5:
+			for i in 90:
+				positions.append(Vector3(-45.0 + i * 1.0 + rng.randf_range(-0.3, 0.3),
+					3.4 + row * 1.55 + rng.randf_range(0.0, 0.3),
+					s * (70.0 + row * 3.0) + rng.randf_range(-0.5, 0.5)))
+
+	mm.instance_count = positions.size()
+	var inst := MultiMeshInstance3D.new()
+	inst.multimesh = mm
+	add_child(inst)
+	for i in positions.size():
+		var t := Transform3D(Basis.IDENTITY, positions[i])
+		mm.set_instance_transform(i, t)
+		mm.set_instance_color(i, palette[rng.randi() % palette.size()])

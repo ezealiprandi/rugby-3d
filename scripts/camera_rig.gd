@@ -1,10 +1,15 @@
 extends Camera3D
 class_name RugbyCam
 
-# Cámara tipo retransmisión: lateral elevada que sigue el balón a lo largo del campo.
+# Cámara tipo retransmisión que sigue el balón. En el menú orbita el estadio
+# y durante la conversión se coloca detrás del pateador.
 var game: RugbyGame
 var sz := 0.0
 var sx := 0.0
+var orbit := 0.0
+var override_active := false
+var override_pos := Vector3.ZERO
+var override_look := Vector3.ZERO
 
 
 func _ready() -> void:
@@ -12,14 +17,33 @@ func _ready() -> void:
 	fov = 52.0
 
 
+func set_override(pos: Vector3, look: Vector3) -> void:
+	override_active = true
+	override_pos = pos
+	override_look = look
+
+
+func clear_override() -> void:
+	override_active = false
+
+
 func _process(delta: float) -> void:
 	if game == null or game.ball == null:
 		return
+	if game.phase == RugbyGame.Phase.MENU:
+		orbit += delta * 0.1
+		global_position = Vector3(sin(orbit) * 62.0, 34.0, cos(orbit) * 62.0)
+		look_at(Vector3(0.0, 0.0, 0.0), Vector3.UP)
+		return
+	if override_active:
+		global_position = override_pos
+		look_at(override_look, Vector3.UP)
+		return
 	var bp := game.ball.global_position
-	var tz := clampf(bp.z, -44.0, 44.0)
-	var tx := clampf(bp.x, -22.0, 22.0) * 0.4
+	var tz := clampf(bp.z, -46.0, 46.0)
+	var tx := clampf(bp.x, -24.0, 24.0) * 0.4
 	var k := minf(1.0, delta * 3.5)
 	sz = lerpf(sz, tz, k)
 	sx = lerpf(sx, tx, k)
-	global_position = Vector3(-56.0 + sx, 40.0, sz)
+	global_position = Vector3(-58.0 + sx, 42.0, sz)
 	look_at(Vector3(4.0 + sx, 0.0, sz), Vector3.UP)

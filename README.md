@@ -1,15 +1,33 @@
-# Rugby 3D
+# Rugby Tucumano 3D
 
-Juego arcade de rugby 3D hecho en Godot 4 (GDScript). Vista de cámara tipo
-retransmisión televisiva, 5 vs 5, con IA para compañeros y rivales.
+Juego de rugby 3D hecho en Godot 4 (GDScript). **15 vs 15**, vista de cámara
+tipo retransmisión televisiva, con los clubes de la **Unión de Rugby de
+Tucumán** y su indumentaria oficial.
 
 ## Cómo ejecutar
 
-- **Desde el ejecutable de Godot** (sin abrir el editor):
-  ```
-  Godot_v4.7.2-stable_win64.exe --path .
-  ```
-- **Desde el editor**: abrir `project.godot` con Godot 4.7+ y pulsar F5.
+```
+Godot_v4.7.2-stable_win64.exe --path .
+```
+
+O abrir `project.godot` con el editor Godot 4.7+ y pulsar F5.
+
+## Clubes (colores oficiales URT)
+
+| Club | Sede | Camiseta |
+|------|------|----------|
+| Tucumán Rugby Club | Yerba Buena | Cuadros verde y negro |
+| Universitario RC | S.M. de Tucumán | Azul y gris |
+| Los Tarcos RC | S.M. de Tucumán | Roja |
+| **Club Natación y Gimnasia** ★ | S.M. de Tucumán | Blanca, rayas azul/roja (campeón 2026) |
+| Tucumán Lawn Tennis | S.M. de Tucumán | Blanca, azul y amarilla |
+| Cardenales RC | S.M. de Tucumán | Roja, cruz negra |
+| Huirapuca S.C. | Concepción | Verde y roja |
+| Jockey Club de Tucumán | Yerba Buena | Blanca, bordó y celeste |
+| Lince RC | S.M. de Tucumán | Gris y roja |
+| Corsarios RC | S.M. de Tucumán | Negra |
+| Bajo Hondo RC | S.M. de Tucumán | Negra y naranja |
+| Aguará Guazú | Aguilares | Azul y roja |
 
 ## Controles
 
@@ -17,41 +35,74 @@ retransmisión televisiva, 5 vs 5, con IA para compañeros y rivales.
 |-------|--------|
 | WASD / Flechas | Mover jugador controlado |
 | Shift | Sprint |
-| Espacio | Pasar (¡solo hacia atrás o lateral!) |
+| Espacio | Pasar (¡hacia atrás!) / confirmar en conversión |
 | K | Patada larga |
-| Esc / P | Pausa |
-| R | Reiniciar (al final del partido) |
+| Enter | Menú: confirmar |
+| Esc / P | Pausa / volver en menú |
+| R / M | Revancha / volver al menú (al final del partido) |
 
-El jugador controlado (cono amarillo) es siempre el portador en ataque o el
-defensor más cercano al balón en defensa.
+Controlás siempre al portador en ataque o al defensor más cercano en defensa
+(cono amarillo).
 
-## Reglas implementadas (simplificadas)
+## Conversión (estilo Rugby 25)
 
-- **Try**: cruzar la línea de goal rival con el balón = +7 (conversión automática).
-- **Pase adelantado**: penalizado, la posesión pasa al rival.
-- **Placaje**: el defensor derriba al portador; el balón pasa al compañero más
-  cercano, o hay turnover si el portador estaba aislado.
-- **Touch**: salir por el lateral o la línea de pelota muerta = turnover.
-- **Duración**: 2 tiempos de 2:30, con cambio de campo en el entretiempo.
-- **Saque**: el equipo que concede puntos saca desde la mitad de cancha.
+Tras cada try, la patada se juega desde la perpendicular de donde se apoyó:
+
+1. **Dirección**: la aguja barre izquierda-derecha — Espacio para fijar.
+2. **Potencia**: la barra sube y baja — Espacio para patear.
+
+El balón pega en los postes y el travesaño con física real. Si el equipo rival
+marca, su apertura convierte automáticamente (más difícil desde el costado).
+
+## Reglas implementadas
+
+- **Try** (+5) y **conversión** (+2) pateable
+- **Pase adelantado** y **knock-on** (recepción fallida) → **scrum**
+- **Scrum**: los packs se forman en el punto, sale el medioscrum (9)
+- **Touch** → **lineout**: filas de forwards, hooker tira, 18% de robo
+- **Placaje** → **ruck**: apoyos atan, defensores respetan línea de offside,
+  sale el 9 (o turnover si no hay apoyo)
+- **Penales**: 10% de infracción en el ruck → penal jugado rápido 10m adelante
+- **Pelota muerta / in-goal propio** → **drop-out de 22**
+- **2 tiempos** de 3:00 con cambio de campo; saque del equipo que concede puntos
+
+Simplificaciones deliberadas: conversión automática para la IA, sin mark ni
+offside de patada, y el scrum/lineout no son contestados en profundidad.
+
+## Estadio
+
+Cancha reglamentaria (70×120m con in-goals), postes con protectores,
+banderines de esquina, tribunas con público (MultiMesh), torres de luz,
+vallas publicitarias, bancos de suplentes y logo URT en mitad de cancha.
 
 ## Estructura
 
 ```
-scenes/main.tscn      escena principal (todo se genera por código)
-scripts/main.gd       gestor del partido: fases, marcador, reglas
-scripts/field.gd      cancha: césped, líneas, postes, tribunas
-scripts/player.gd     jugador: control por input + IA (apoyos, defensa, placajes)
-scripts/ball.gd       balón con física: carries, pases, patadas
-scripts/camera_rig.gd cámara broadcast que sigue el juego
-scripts/ui.gd         marcador, reloj y mensajes
+scenes/main.tscn        escena raíz (todo se genera por código)
+scripts/main.gd         gestor del partido: fases, reglas, conversión
+scripts/teams.gd        clubes URT: colores, ciudad, rating
+scripts/menu.gd         menú principal y selector de equipos
+scripts/field.gd        estadio completo
+scripts/player.gd       jugador: input + IA (apoyos, defensa, rucks, formaciones)
+scripts/ball.gd         física del balón
+scripts/camera_rig.gd   cámara broadcast / órbita menú / cámara de conversión
+scripts/ui.gd           marcador, reloj, mensajes, medidor de conversión
+tests/sim_rules.gd      test headless de todos los eventos reglamentarios
 ```
+
+## Test headless
+
+```
+godot --headless --script tests/sim_rules.gd   # debe imprimir TEST OK
+```
+
+Y con `-- --auto` al ejecutar el juego se salta el menú (partido TRC vs NYG).
 
 ## Ideas para iterar
 
-- Conversión pateable manual (en vez de automática)
-- Rucks/mauls con más jugadores y contest real
-- Offside y knock-on
-- Sonido (silbato, público, impactos)
-- Sprites/modelos 3D con animaciones en vez de cápsulas
-- Multijugador local
+- Drop goals y penales al palo
+- Mark (recepción limpia) y offside de patada
+- Mauls y scrums contestados con física de empuje
+- Sonido (silbato, público, impactos) y comentario
+- Modelos 3D animados en vez de cápsulas
+- Modo torneo URT
