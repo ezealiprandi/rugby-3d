@@ -12,7 +12,7 @@ var cursor := 0
 var home_idx := -1
 var mode := "friendly"
 
-var bg: ColorRect
+var bgt: TextureRect
 var title_lbl: Label
 var subtitle_lbl: Label
 var prompt_lbl: Label
@@ -25,12 +25,52 @@ var options_btn: Button
 var controls_lbl: Label
 var opt_box: VBoxContainer
 var opt_btns: Array[Button] = []
+var opt_hdrs := {}          # Label -> clave de idioma
 var grid: GridContainer
 var sel_row: HBoxContainer
 var buttons: Array[Button] = []
 var footer_lbl: Label
 var preview_tex: TextureRect
 var preview_lbl: Label
+
+
+const EN := {
+	"AMISTOSO": "FRIENDLY",
+	"TORNEO URT · 11 fechas": "URT TOURNAMENT · 11 rounds",
+	"PRÁCTICA LIBRE": "FREE PRACTICE",
+	"CONTROLES": "CONTROLS",
+	"OPCIONES": "OPTIONS",
+	"Unión de Rugby de Tucumán · Edición clubes": "Tucumán Rugby Union · Clubs edition",
+	"15 vs 15 · camisetas oficiales · árbitro en cancha": "15 vs 15 · official kits · referee on pitch",
+	"Click o Enter para jugar": "Click or Enter to play",
+	"ELEGÍ TU EQUIPO": "CHOOSE YOUR TEAM",
+	"ELEGÍ EL RIVAL": "CHOOSE THE OPPONENT",
+	" — TORNEO URT": " — URT TOURNAMENT",
+	" — tu equipo: ": " — your team: ",
+	"↑↓ mover · Enter/click confirmar · Esc volver": "↑↓ move · Enter/click confirm · Esc back",
+	"Enter/click cambia el valor · Esc guarda y vuelve": "Enter/click changes · Esc saves & back",
+	"Esc volver": "Esc back",
+	"CAMPEÓN 2026": "2026 CHAMPION",
+	"PARTIDO": "MATCH", "GRÁFICOS": "GRAPHICS", "AUDIO": "AUDIO",
+	"ACCESIBILIDAD": "ACCESSIBILITY", "IDIOMA": "LANGUAGE",
+	"Duración del tiempo": "Match half length",
+	"Dificultad IA": "AI difficulty",
+	"Horario": "Time of day", "Clima": "Weather",
+	"Aleatorio": "Random", "Día": "Day", "Atardecer": "Sunset", "Noche": "Night",
+	"Despejado": "Clear", "Lluvia": "Rain",
+	"Calidad gráfica": "Graphics quality", "Baja": "Low", "Media": "Medium", "Alta": "High",
+	"Pantalla completa": "Fullscreen", "VSync": "VSync",
+	"Sonido": "Sound", "Volumen": "Volume", "Sí": "Yes", "No": "No",
+	"Sprint": "Sprint", "Mantener": "Hold", "Alternar": "Toggle",
+	"Velocidad del juego": "Game speed", "Interfaz grande": "Big UI",
+	"Idioma": "Language", "Español": "Español", "Inglés": "English",
+}
+
+
+func T(txt: String) -> String:
+	if game != null and game.opt_lang == "en":
+		return EN.get(txt, txt)
+	return txt
 
 
 func _mode_button(text: String, bg_c: Color, border_c: Color) -> Button:
@@ -82,10 +122,19 @@ func _ready() -> void:
 	layer = 30
 	process_mode = Node.PROCESS_MODE_ALWAYS
 
-	bg = ColorRect.new()
-	bg.color = Color(0.02, 0.05, 0.03, 0.72)
-	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
-	add_child(bg)
+	var grad := Gradient.new()
+	grad.set_color(0, Color(0.02, 0.09, 0.05, 0.85))
+	grad.set_color(1, Color(0.01, 0.03, 0.02, 0.93))
+	var gtex := GradientTexture2D.new()
+	gtex.gradient = grad
+	gtex.fill_from = Vector2(0, 0)
+	gtex.fill_to = Vector2(0, 1)
+	var bgt := TextureRect.new()
+	bgt.texture = gtex
+	bgt.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	bgt.stretch_mode = TextureRect.STRETCH_SCALE
+	bgt.set_anchors_preset(Control.PRESET_FULL_RECT)
+	add_child(bgt)
 
 	var center := CenterContainer.new()
 	center.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -146,46 +195,39 @@ func _ready() -> void:
 	opt_box.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	opt_box.visible = false
 	vb.add_child(opt_box)
-	for i in 5:
-		var ob := Button.new()
-		ob.custom_minimum_size = Vector2(460, 42)
-		ob.add_theme_font_size_override("font_size", 20)
-		ob.alignment = HORIZONTAL_ALIGNMENT_LEFT
-		ob.add_theme_stylebox_override("normal",
-			_btn_style(Color(0.1, 0.1, 0.14, 0.9), Color(0.4, 0.35, 0.55)))
-		ob.add_theme_stylebox_override("hover",
-			_btn_style(Color(0.2, 0.16, 0.3), Color(0.8, 0.65, 1.0)))
-		ob.add_theme_stylebox_override("focus",
-			_btn_style(Color(0.2, 0.16, 0.3), Color(1.0, 0.85, 0.2)))
-		ob.pressed.connect(_cycle_option.bind(i))
-		opt_box.add_child(ob)
-		opt_btns.append(ob)
+	var opt_layout: Array = [
+		"PARTIDO", 0, 1, 2, 3,
+		"GRÁFICOS", 4, 5, 6,
+		"AUDIO", 7, 8,
+		"CONTROLES", 9,
+		"ACCESIBILIDAD", 10, 11,
+		"IDIOMA", 12,
+	]
+	for spec in opt_layout:
+		if spec is String:
+			var hl := _lbl(15)
+			hl.add_theme_color_override("font_color", Color(1.0, 0.75, 0.15))
+			hl.text = "— " + spec + " —"
+			opt_box.add_child(hl)
+			opt_hdrs[hl] = spec
+		else:
+			var ob := Button.new()
+			ob.custom_minimum_size = Vector2(480, 36)
+			ob.add_theme_font_size_override("font_size", 19)
+			ob.alignment = HORIZONTAL_ALIGNMENT_LEFT
+			ob.add_theme_stylebox_override("normal",
+				_btn_style(Color(0.1, 0.1, 0.14, 0.9), Color(0.4, 0.35, 0.55)))
+			ob.add_theme_stylebox_override("hover",
+				_btn_style(Color(0.2, 0.16, 0.3), Color(0.8, 0.65, 1.0)))
+			ob.add_theme_stylebox_override("focus",
+				_btn_style(Color(0.2, 0.16, 0.3), Color(1.0, 0.85, 0.2)))
+			ob.pressed.connect(_cycle_option.bind(spec))
+			opt_box.add_child(ob)
+			opt_btns.append(ob)
 	controls_lbl = _lbl(22)
 	controls_lbl.add_theme_color_override("font_color", Color(0.92, 0.95, 0.9))
-	controls_lbl.text = """WASD / Flechas — mover
-Shift — sprint
-Q / E — pase a la izquierda / derecha
-Espacio — pase al apoyo más cercano
-F — placaje · en el ruck: intentá robar la pelota
-X — sidestep (amague lateral, difícil de placar)
-B — dummy pass (amague que congela defensores)
-J — fend (quitarse el placaje)
-Espacio al ser placado — offload a un apoyo
-C — grubber (patada rasante por el piso)
-V — up and under (patada alta disputada)
-Z — cross kick (al wing del lado opuesto)
-T — en un penal: patada al touch (lineout propio)
-
-Reglas extra: placaje alto y "no soltó" = penal ·
-atrapar una patada rival en tus 22 = marca
-K — patada larga · en un penal: a los palos (+3)
-G — drop goal (en juego, cerca de los palos)
-Espacio ×2 — conversión: dirección y potencia
-Esc — pausa
-R / M — revancha / menú (al final, o M en práctica)
-
-El cono amarillo marca tu jugador: el portador en ataque,
-el defensor más cercano al balón en defensa."""
+	# (texto ES/EN se asigna en _update_view)
+# (texto ES/EN se asigna en _update_view)
 	controls_lbl.visible = false
 	vb.add_child(controls_lbl)
 
@@ -246,6 +288,17 @@ el defensor más cercano al balón en defensa."""
 	footer_lbl.add_theme_color_override("font_color", Color(1, 1, 1, 0.6))
 	vb.add_child(footer_lbl)
 
+	# franja decorativa con los 12 colores de club
+	var strip := HBoxContainer.new()
+	strip.add_theme_constant_override("separation", 6)
+	strip.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	vb.add_child(strip)
+	for c in RugbyTeams.CLUBS:
+		var r := ColorRect.new()
+		r.color = c["primary"]
+		r.custom_minimum_size = Vector2(28, 9)
+		strip.add_child(r)
+
 
 func start() -> void:
 	step = Step.TITLE
@@ -277,29 +330,35 @@ func _update_view() -> void:
 	match step:
 		Step.TITLE:
 			title_lbl.text = "RUGBY TUCUMANO 3D"
-			subtitle_lbl.text = "Unión de Rugby de Tucumán · Edición clubes"
-			prompt_lbl.text = "15 vs 15 · camisetas oficiales · árbitro en cancha"
-			footer_lbl.text = "Click o Enter para jugar · v3.0"
+			subtitle_lbl.text = T("Unión de Rugby de Tucumán · Edición clubes")
+			prompt_lbl.text = T("15 vs 15 · camisetas oficiales · árbitro en cancha")
+			footer_lbl.text = T("Click o Enter para jugar") + " · v4.0"
+			play_btn.text = T("AMISTOSO")
+			tourney_btn.text = T("TORNEO URT · 11 fechas")
+			practice_btn.text = T("PRÁCTICA LIBRE")
+			controls_btn.text = T("CONTROLES")
+			options_btn.text = T("OPCIONES")
 			play_btn.grab_focus()
 		Step.HOME:
-			prompt_lbl.text = "ELEGÍ TU EQUIPO" + \
-				(" — TORNEO URT" if mode == "tournament" else "")
-			footer_lbl.text = "↑↓ mover · Enter/click confirmar · Esc volver"
+			prompt_lbl.text = T("ELEGÍ TU EQUIPO") + \
+				(T(" — TORNEO URT") if mode == "tournament" else "")
+			footer_lbl.text = T("↑↓ mover · Enter/click confirmar · Esc volver")
 			_fill_rows(-1)
 			buttons[cursor].grab_focus()
 			_update_preview()
 		Step.AWAY:
-			prompt_lbl.text = "ELEGÍ EL RIVAL — tu equipo: %s" % clubs[home_idx]["name"]
-			footer_lbl.text = "↑↓ mover · Enter/click confirmar · Esc volver"
+			prompt_lbl.text = T("ELEGÍ EL RIVAL") + T(" — tu equipo: ") + clubs[home_idx]["name"]
+			footer_lbl.text = T("↑↓ mover · Enter/click confirmar · Esc volver")
 			_fill_rows(home_idx)
 			buttons[cursor].grab_focus()
 			_update_preview()
 		Step.CONTROLS:
-			prompt_lbl.text = "CONTROLES"
-			footer_lbl.text = "Esc volver"
+			prompt_lbl.text = T("CONTROLES")
+			controls_lbl.text = CONTROLS_EN if game.opt_lang == "en" else CONTROLS_ES
+			footer_lbl.text = T("Esc volver")
 		Step.OPTIONS:
-			prompt_lbl.text = "OPCIONES"
-			footer_lbl.text = "Enter/click cambia el valor · Esc guarda y vuelve"
+			prompt_lbl.text = T("OPCIONES")
+			footer_lbl.text = T("Enter/click cambia el valor · Esc guarda y vuelve")
 			_refresh_options()
 			opt_btns[0].grab_focus()
 
@@ -308,7 +367,7 @@ func _fill_rows(exclude: int) -> void:
 	var clubs: Array = RugbyTeams.CLUBS
 	for i in clubs.size():
 		var b := buttons[i]
-		var tag := "  ★ CAMPEÓN 2026" if i == RugbyTeams.NYG_INDEX else ""
+		var tag := "  ★ " + T("CAMPEÓN 2026") if i == RugbyTeams.NYG_INDEX else ""
 		b.text = "%s  (%s)%s" % [clubs[i]["name"], clubs[i]["city"], tag]
 		b.disabled = i == exclude
 		b.modulate = Color(1, 1, 1, 0.4) if i == exclude else Color(1, 1, 1)
@@ -398,26 +457,80 @@ func _on_controls_pressed() -> void:
 	_update_view()
 
 
+const CONTROLS_ES := """WASD / Flechas — mover
+Shift — sprint
+Q / E — pase a la izquierda / derecha
+Espacio — pase al apoyo más cercano
+F — placaje · en el ruck: intentá robar la pelota
+X — sidestep (amague lateral, difícil de placar)
+B — dummy pass (amague que congela defensores)
+J — fend (quitarse el placaje)
+Espacio al ser placado — offload a un apoyo
+C — grubber (patada rasante por el piso)
+V — up and under (patada alta disputada)
+Z — cross kick (al wing del lado opuesto)
+T — en un penal: patada al touch (lineout propio)
+
+Reglas extra: placaje alto y "no soltó" = penal ·
+atrapar una patada rival en tus 22 = marca
+K — patada larga · en un penal: a los palos (+3)
+G — drop goal (en juego, cerca de los palos)
+Espacio ×2 — conversión: dirección y potencia
+Esc — pausa
+R / M — revancha / menú (al final, o M en práctica)
+
+El cono amarillo marca tu jugador: el portador en ataque,
+el defensor más cercano al balón en defensa."""
+
+const CONTROLS_EN := """WASD / Arrows — move
+Shift — sprint
+Q / E — pass left / right
+Space — pass to nearest support
+F — tackle · in the ruck: jackal for the ball
+X — sidestep (harder to tackle)
+B — dummy pass (freezes defenders)
+J — fend
+Space when tackled — offload to a support
+C — grubber kick (along the ground)
+V — up and under (high contestable kick)
+Z — cross kick (to the far wing)
+T — on a penalty: kick to touch (your lineout)
+
+Extra rules: high tackle and "not releasing" = penalty ·
+catching a rival kick inside your 22 = mark
+K — long kick · on a penalty: kick at goal (+3)
+G — drop goal (in open play, near the posts)
+Space ×2 — conversion: direction and power
+Esc — pause
+R / M — rematch / menu (at the end, or M in practice)
+
+The yellow cone marks your player: the ball carrier in attack,
+the nearest defender to the ball in defence."""
+
+
 func _on_options_pressed() -> void:
 	step = Step.OPTIONS
 	_update_view()
 
 
 func _opt_info(i: int) -> Array:
+	var yn := [T("No"), T("Sí")]
 	match i:
-		0:
-			return ["Duración del tiempo", "%d min" % int(game.half_len / 60.0)]
-		1:
-			return ["Dificultad IA",
-				["Fácil", "Normal", "Difícil"][game.opt_difficulty]]
-		2:
-			return ["Horario", {"random": "Aleatorio", "day": "Día",
-				"sunset": "Atardecer", "night": "Noche"}[game.opt_tod]]
-		3:
-			return ["Clima", {"random": "Aleatorio", "clear": "Despejado",
-				"rain": "Lluvia"}[game.opt_weather]]
-		4:
-			return ["Sonido", "Sí" if game.opt_sound else "No"]
+		0:  return [T("Duración del tiempo"), "%d min" % int(game.half_len / 60.0)]
+		1:  return [T("Dificultad IA"), [T("Fácil"), T("Normal"), T("Difícil")][game.opt_difficulty]]
+		2:  return [T("Horario"), {"random": T("Aleatorio"), "day": T("Día"),
+			"sunset": T("Atardecer"), "night": T("Noche")}[game.opt_tod]]
+		3:  return [T("Clima"), {"random": T("Aleatorio"), "clear": T("Despejado"),
+			"rain": T("Lluvia")}[game.opt_weather]]
+		4:  return [T("Calidad gráfica"), [T("Baja"), T("Media"), T("Alta")][game.opt_quality]]
+		5:  return [T("Pantalla completa"), yn[int(game.opt_fullscreen)]]
+		6:  return ["VSync", yn[int(game.opt_vsync)]]
+		7:  return [T("Sonido"), yn[int(game.opt_sound)]]
+		8:  return [T("Volumen"), "%d%%" % [0, 25, 50, 75, 100][game.opt_volume]]
+		9:  return [T("Sprint"), T("Mantener") if not game.opt_sprint_toggle else T("Alternar")]
+		10: return [T("Velocidad del juego"), "%d%%" % int(game.opt_game_speed * 100.0)]
+		11: return [T("Interfaz grande"), yn[int(game.opt_ui_big)]]
+		12: return [T("Idioma"), "Español" if game.opt_lang == "es" else "English"]
 	return ["", ""]
 
 
@@ -435,15 +548,34 @@ func _cycle_option(i: int) -> void:
 			var wths := ["random", "clear", "rain"]
 			game.opt_weather = wths[(wths.find(game.opt_weather) + 1) % 3]
 		4:
+			game.opt_quality = (game.opt_quality + 1) % 3
+		5:
+			game.opt_fullscreen = not game.opt_fullscreen
+		6:
+			game.opt_vsync = not game.opt_vsync
+		7:
 			game.opt_sound = not game.opt_sound
+		8:
+			game.opt_volume = (game.opt_volume + 1) % 5
+		9:
+			game.opt_sprint_toggle = not game.opt_sprint_toggle
+		10:
+			var spd := [1.0, 0.75, 0.5]
+			game.opt_game_speed = spd[(spd.find(game.opt_game_speed) + 1) % 3]
+		11:
+			game.opt_ui_big = not game.opt_ui_big
+		12:
+			game.opt_lang = "en" if game.opt_lang == "es" else "es"
 	game.save_options()
 	_refresh_options()
 
 
 func _refresh_options() -> void:
+	for hl in opt_hdrs:
+		hl.text = "— " + T(opt_hdrs[hl]) + " —"
 	for i in opt_btns.size():
 		var info := _opt_info(i)
-		opt_btns[i].text = "%-22s  < %s >" % [info[0], info[1]]
+		opt_btns[i].text = "%-20s  < %s >" % [info[0], info[1]]
 
 
 func _on_team_hover(i: int) -> void:

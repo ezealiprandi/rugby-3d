@@ -73,6 +73,14 @@ var opt_difficulty := 1        # 0 fácil · 1 normal · 2 difícil
 var opt_tod := "random"        # random · day · sunset · night
 var opt_weather := "random"    # random · clear · rain
 var opt_sound := true
+var opt_quality := 2           # 0 baja · 1 media · 2 alta
+var opt_fullscreen := false
+var opt_vsync := true
+var opt_volume := 4            # 0..4 → mudo..100%
+var opt_sprint_toggle := false # false mantener · true alternar
+var opt_game_speed := 1.0      # 1.0 · 0.75 · 0.5 (accesibilidad)
+var opt_ui_big := false        # interfaz más grande
+var opt_lang := "es"           # es · en
 var conv_pts := 2                     # 2 conversión · 3 penal a los palos
 
 # drop goal en juego abierto
@@ -189,6 +197,14 @@ func save_options() -> void:
 	cfg.set_value("game", "weather", opt_weather)
 	cfg.set_value("game", "sound", opt_sound)
 	cfg.set_value("game", "half_len", half_len)
+	cfg.set_value("game", "quality", opt_quality)
+	cfg.set_value("game", "fullscreen", opt_fullscreen)
+	cfg.set_value("game", "vsync", opt_vsync)
+	cfg.set_value("game", "volume", opt_volume)
+	cfg.set_value("game", "sprint_toggle", opt_sprint_toggle)
+	cfg.set_value("game", "game_speed", opt_game_speed)
+	cfg.set_value("game", "ui_big", opt_ui_big)
+	cfg.set_value("game", "lang", opt_lang)
 	cfg.save("user://settings.cfg")
 	_apply_options()
 
@@ -201,11 +217,31 @@ func _load_options() -> void:
 		opt_weather = cfg.get_value("game", "weather", "random")
 		opt_sound = cfg.get_value("game", "sound", true)
 		half_len = cfg.get_value("game", "half_len", 180.0)
+		opt_quality = cfg.get_value("game", "quality", 2)
+		opt_fullscreen = cfg.get_value("game", "fullscreen", false)
+		opt_vsync = cfg.get_value("game", "vsync", true)
+		opt_volume = cfg.get_value("game", "volume", 4)
+		opt_sprint_toggle = cfg.get_value("game", "sprint_toggle", false)
+		opt_game_speed = cfg.get_value("game", "game_speed", 1.0)
+		opt_ui_big = cfg.get_value("game", "ui_big", false)
+		opt_lang = cfg.get_value("game", "lang", "es")
 	_apply_options()
 
 
 func _apply_options() -> void:
 	AudioServer.set_bus_mute(0, not opt_sound)
+	AudioServer.set_bus_volume_db(0, [-80.0, -18.0, -10.0, -5.0, 0.0][opt_volume])
+	Engine.time_scale = opt_game_speed
+	DisplayServer.window_set_vsync_mode(
+		DisplayServer.VSYNC_ENABLED if opt_vsync else DisplayServer.VSYNC_DISABLED)
+	DisplayServer.window_set_mode(
+		DisplayServer.WINDOW_MODE_FULLSCREEN if opt_fullscreen
+		else DisplayServer.WINDOW_MODE_MAXIMIZED)
+	get_window().content_scale_factor = 1.22 if opt_ui_big else 1.0
+	if field != null and field.env_node != null:
+		var e := field.env_node.environment
+		e.glow_enabled = opt_quality >= 1
+		e.ssao_enabled = opt_quality >= 2
 
 
 func _mk_audio(path: String, db: float) -> AudioStreamPlayer:

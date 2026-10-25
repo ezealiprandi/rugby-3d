@@ -22,6 +22,7 @@ var step_dir := Vector3(0, 0, 1)
 var step_cd := 0.0
 var surge_t := 0.0
 var stamina := 1.0                 # energía: el sprint cansa
+var sprint_on := false              # modo alternar (opción)
 var kick_anim_t := 0.0              # animación de patada del pateador
 var froze_t := 0.0                  # congelado por un amague (dummy)
 var stat_tries := 0
@@ -313,7 +314,11 @@ func _desired_velocity() -> Vector3:
 	if game.controlled == self:
 		var iv := Input.get_vector("move_left", "move_right", "move_up", "move_down")
 		var d := game.cam_move_dir(iv)
-		var sp := (SPRINT_SPEED if Input.is_action_pressed("sprint") else BASE_SPEED) \
+		if game.opt_sprint_toggle and Input.is_action_just_pressed("sprint"):
+			sprint_on = not sprint_on
+		var sprinting: bool = sprint_on if game.opt_sprint_toggle \
+			else Input.is_action_pressed("sprint")
+		var sp := (SPRINT_SPEED if sprinting else BASE_SPEED) \
 			* speed_mult
 		if game.ball.carrier == self:
 			if Input.is_action_just_pressed("pass"):
