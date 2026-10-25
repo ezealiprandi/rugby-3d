@@ -676,6 +676,16 @@ func _check_clock() -> void:
 			hposs = " · Posesión %d%%-%d%%" % [
 				int(poss_t[0] / htot * 100), int(poss_t[1] / htot * 100)]
 		ui.show_message("¡Entretiempo! Cambian de campo" + hposs, 2.8)
+		# stats del primer tiempo, estilo transmisión
+		var hstats := "1T — %s %d · %d %s   ·   Tries %d-%d   ·   Placajes %d-%d" % [
+			RugbyTeams.CLUBS[home_idx]["abbr"], score[0], score[1],
+			RugbyTeams.CLUBS[away_idx]["abbr"],
+			tries_n[0], tries_n[1], tackles_n[0], tackles_n[1]]
+		var htot2: float = poss_t[0] + poss_t[1]
+		if htot2 > 1.0:
+			hstats += "   ·   Posesión %d%%-%d%%" % [
+				int(poss_t[0] / htot2 * 100), int(poss_t[1] / htot2 * 100)]
+		ui.ht_show(hstats)
 		# ingresan los suplentes: piernas frescas en ambos equipos
 		for p in players:
 			p.stamina = 1.0

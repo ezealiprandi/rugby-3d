@@ -50,6 +50,11 @@ var scorer_t := 0.0
 var stam_panel: PanelContainer
 var stam_fill: ColorRect
 var stam_name: Label
+var sb_hcard: ColorRect
+var sb_acard: ColorRect
+var ht_panel: PanelContainer
+var ht_lbl: Label
+var ht_t := 0.0
 var lineup_panel: CenterContainer
 var lineup_home: Label
 var lineup_away: Label
@@ -260,6 +265,10 @@ func _process(delta: float) -> void:
 			stam_fill.color = Color(0.9 - cpl.stamina * 0.55,
 				0.3 + cpl.stamina * 0.55, 0.3)
 			stam_name.text = "#%d %s" % [cpl.index + 1, cpl.pname]
+	if ht_t > 0.0:
+		ht_t -= delta
+		if ht_t <= 0.0:
+			ht_panel.visible = false
 	if scorer_t > 0.0:
 		scorer_t -= delta
 		if scorer_t <= 0.0:
@@ -318,6 +327,10 @@ func _build_scorebug() -> void:
 	sb_hc.custom_minimum_size = Vector2(6, 22)
 	sb_hc.color = Color(0.5, 0.5, 0.5)
 	hb.add_child(sb_hc)
+	sb_hcard = ColorRect.new()
+	sb_hcard.custom_minimum_size = Vector2(10, 14)
+	sb_hcard.visible = false
+	hb.add_child(sb_hcard)
 	sb_score = Label.new()
 	sb_score.add_theme_font_size_override("font_size", 24)
 	sb_score.add_theme_color_override("font_color", Color(0.96, 0.96, 0.92))
@@ -329,6 +342,10 @@ func _build_scorebug() -> void:
 	sb_ac.custom_minimum_size = Vector2(6, 22)
 	sb_ac.color = Color(0.5, 0.5, 0.5)
 	hb.add_child(sb_ac)
+	sb_acard = ColorRect.new()
+	sb_acard.custom_minimum_size = Vector2(10, 14)
+	sb_acard.visible = false
+	hb.add_child(sb_acard)
 	sb_clock = Label.new()
 	sb_clock.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	sb_clock.add_theme_font_size_override("font_size", 15)
@@ -742,6 +759,22 @@ func _build_broadcast() -> void:
 	stam_panel.visible = false
 	add_child(stam_panel)
 
+	# stats del primer tiempo (abajo al centro, sobre la barra de energía)
+	ht_panel = _bcast_panel()
+	ht_panel.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
+	ht_panel.offset_left = -330
+	ht_panel.offset_right = 330
+	ht_panel.offset_top = -150
+	ht_panel.offset_bottom = -90
+	ht_lbl = Label.new()
+	ht_lbl.add_theme_font_size_override("font_size", 17)
+	ht_lbl.add_theme_color_override("font_color", Color(0.95, 0.95, 0.9))
+	ht_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	ht_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	ht_panel.add_child(ht_lbl)
+	ht_panel.visible = false
+	add_child(ht_panel)
+
 
 func tv_show(on: bool) -> void:
 	tv_bug.visible = on
@@ -780,6 +813,18 @@ func replay_overlay(on: bool) -> void:
 	replay_top.visible = on
 	replay_bot.visible = on
 	replay_tag.visible = on
+
+
+func card_show(team: int, is_red: bool) -> void:
+	var r := sb_hcard if team == 0 else sb_acard
+	r.color = Color(0.95, 0.1, 0.1) if is_red else Color(1.0, 0.85, 0.1)
+	r.visible = true
+
+
+func ht_show(text: String) -> void:
+	ht_lbl.text = text
+	ht_panel.visible = true
+	ht_t = 6.0
 
 
 func scorer_show(p: RugbyPlayer) -> void:
