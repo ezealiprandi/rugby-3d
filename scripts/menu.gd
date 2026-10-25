@@ -139,6 +139,10 @@ X — sidestep (amague lateral, difícil de placar)
 J — fend (quitarse el placaje)
 C — grubber (patada rasante por el piso)
 V — up and under (patada alta disputada)
+Z — cross kick (al wing del lado opuesto)
+
+Reglas extra: placaje alto y "no soltó" = penal ·
+atrapar una patada rival en tus 22 = marca
 K — patada larga · en un penal: a los palos (+3)
 G — drop goal (en juego, cerca de los palos)
 Espacio ×2 — conversión: dirección y potencia

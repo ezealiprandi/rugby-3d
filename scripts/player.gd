@@ -280,6 +280,8 @@ func _desired_velocity() -> Vector3:
 				_do_grubber()
 			if Input.is_action_just_pressed("bomb"):
 				_do_bomb()
+			if Input.is_action_just_pressed("crosskick"):
+				_do_crosskick()
 			if Input.is_action_just_pressed("step") and step_cd <= 0.0:
 				_start_step()
 			if Input.is_action_just_pressed("fend") and cool_fend <= 0.0:
@@ -446,6 +448,9 @@ func _carrier_ai() -> Vector3:
 			evade = -evade
 		dir = (dir * 0.55 + evade * 0.85).normalized()
 
+	if is_nine() and cool_kick <= 0.0 and game.rng.randf() < 0.012:
+		_do_box_kick()
+		return Vector3.ZERO
 	if nearest_d > 6.0 and game.drop_goal_team < 0 \
 			and global_position.z * d > 8.0 and game.rng.randf() < 0.002:
 		_do_drop_goal()
@@ -538,7 +543,12 @@ func _try_pickup() -> void:
 			if game.rng.randf() < chance:
 				game.on_knock_on(self)
 				return
+		# ¿marca? hay que evaluarla antes de set_carrier que resetea los flags
+		var is_mark := b.was_kicked and b.last_touch_team != team and \
+			global_position.z * float(game.attack_dir[team]) < -28.0
 		b.set_carrier(self)
+		if is_mark:
+			game.on_mark(self)
 
 
 func _try_tackle() -> void:
@@ -611,6 +621,30 @@ func _do_bomb() -> void:
 	var dir := Vector3(-global_position.x * 0.01, 0.0, d).normalized()
 	game.ball.bomb(self, dir)
 	cool_kick = 0.8
+
+
+# cross kick: patada cruzada larga hacia el wing del lado opuesto
+func _do_crosskick() -> void:
+	var d := float(game.attack_dir[team])
+	var wing_idx := 10 if global_position.x > 0.0 else 13
+	var wing := game.players[wing_idx + team * RugbyGame.TEAM_SIZE]
+	var target := Vector3(-signf(global_position.x) * 28.0, 0.0,
+		wing.global_position.z + d * 6.0)
+	var dir := (target - global_position)
+	dir.y = 0.0
+	game.ball.kicked(self, dir.normalized())
+	cool_kick = 0.8
+
+
+# box kick del 9: patada corta disputada por el costado tras el ruck
+func _do_box_kick() -> void:
+	var d := float(game.attack_dir[team])
+	var side := signf(global_position.x)
+	if side == 0.0:
+		side = 1.0
+	var dir := Vector3(side * 0.45, 0.0, d).normalized()
+	game.ball.bomb(self, dir)
+	cool_kick = 1.0
 
 
 # sidestep: burst lateral hacia el lado con menos defensores

@@ -137,6 +137,7 @@ func _register_input() -> void:
 	_add_key_action("grubber", [KEY_C])
 	_add_key_action("bomb", [KEY_V])
 	_add_key_action("step", [KEY_X])
+	_add_key_action("crosskick", [KEY_Z])
 	_add_key_action("kick", [KEY_K])
 	_add_key_action("dropgoal", [KEY_G])
 	_add_key_action("fend", [KEY_J])
@@ -719,6 +720,11 @@ func on_tackle(tackler: RugbyPlayer, carrier: RugbyPlayer) -> void:
 	if phase != Phase.PLAY or carrier.tackled > 0.0:
 		return
 	tackles_n[tackler.team] += 1
+	if tackler.dive_t > 0.02 and rng.randf() < 0.1:
+		tackler.tackled = 0.8
+		_event_penalty(carrier.team, carrier.global_position,
+			"¡PENAL para %s! Placaje alto" % _club_name(carrier.team))
+		return
 	tackler.tackled = 1.2
 	carrier.tackled = 1.2
 	pending_spot = carrier.global_position
@@ -735,10 +741,28 @@ func on_tackle(tackler: RugbyPlayer, carrier: RugbyPlayer) -> void:
 
 
 func _resolve_breakdown() -> void:
+	# ruck por numeros: mas defensores que apoyos = robo probable
+	var att := 0
+	var def := 0
+	for p in players:
+		if p.tackled > 0.0 or p.sin_bin_t > 0.0:
+			continue
+		if p.global_position.distance_to(pending_spot) < 5.0:
+			if p.team == ruck_team:
+				att += 1
+			else:
+				def += 1
+	var extra_steal := clampf(float(def - att) * 0.12, 0.0, 0.3)
+	# el portador quedo aislado: "no solto" puede ser penal para la defensa
+	if att <= 1 and rng.randf() < 0.09:
+		_event_penalty(1 - ruck_team, pending_spot,
+			"¡PENAL para %s! No soltó la pelota" % _club_name(1 - ruck_team))
+		jackal_pressed = false
+		return
 	# jackal: un defensor sobre la pelota puede robarla
 	var jk := _nearest(1 - ruck_team, pending_spot, null, 3.2)
 	if jk != null:
-		var steal := 0.16
+		var steal := 0.16 + extra_steal
 		if jackal_pressed and controlled == jk:
 			steal += 0.3
 		if rng.randf() < steal:
@@ -766,6 +790,21 @@ func _resolve_breakdown() -> void:
 	if p != null:
 		ball.set_carrier(p)
 	phase = Phase.PLAY
+
+
+# marca: pelota de patada rival atrapada dentro de tus 22
+func on_mark(catcher: RugbyPlayer) -> void:
+	_whistle()
+	ui.show_message("¡MARCA! %s juega rápido" % _club_name(catcher.team), 1.6)
+	# los rivales tienen que retroceder: los empujamos hacia su línea
+	var back := float(attack_dir[catcher.team]) * -8.0
+	for p in players:
+		if p.team == catcher.team:
+			continue
+		if p.global_position.distance_to(catcher.global_position) < 12.0:
+			p.global_position.z += back
+			p.global_position.z = clampf(p.global_position.z,
+				-DEAD_Z + 2.0, DEAD_Z - 2.0)
 
 
 func on_forward_pass(thrower: RugbyPlayer) -> void:
