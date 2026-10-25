@@ -16,6 +16,10 @@ var conv_instr: Label
 var aim_needle: ColorRect
 var power_fill: ColorRect
 
+# panel de stats post-partido
+var stats_panel: CenterContainer
+var stats_lbl: Label
+
 
 func _mk_label(size: int) -> Label:
 	var l := Label.new()
@@ -65,6 +69,48 @@ func _ready() -> void:
 	info_lbl.add_theme_color_override("font_color", Color(1, 1, 1, 0.75))
 
 	_build_conversion_ui()
+	_build_stats_panel()
+
+
+func _build_stats_panel() -> void:
+	stats_panel = CenterContainer.new()
+	stats_panel.set_anchors_preset(Control.PRESET_FULL_RECT)
+	var bg := PanelContainer.new()
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.02, 0.04, 0.08, 0.88)
+	sb.border_color = Color(0.85, 0.7, 0.2)
+	sb.border_width_left = 3
+	sb.border_width_right = 3
+	sb.border_width_top = 3
+	sb.border_width_bottom = 3
+	sb.corner_radius_top_left = 12
+	sb.corner_radius_top_right = 12
+	sb.corner_radius_bottom_left = 12
+	sb.corner_radius_bottom_right = 12
+	sb.content_margin_left = 40
+	sb.content_margin_right = 40
+	sb.content_margin_top = 28
+	sb.content_margin_bottom = 28
+	bg.add_theme_stylebox_override("panel", sb)
+	stats_lbl = Label.new()
+	stats_lbl.add_theme_font_size_override("font_size", 20)
+	stats_lbl.add_theme_color_override("font_color", Color(0.95, 0.96, 0.9))
+	stats_lbl.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
+	stats_lbl.add_theme_constant_override("outline_size", 4)
+	stats_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	bg.add_child(stats_lbl)
+	stats_panel.add_child(bg)
+	stats_panel.visible = false
+	add_child(stats_panel)
+
+
+func show_stats(text: String) -> void:
+	stats_lbl.text = text
+	stats_panel.visible = true
+
+
+func hide_stats() -> void:
+	stats_panel.visible = false
 
 
 func _build_conversion_ui() -> void:

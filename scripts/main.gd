@@ -80,6 +80,10 @@ const REPLAY_LEN := 150                # frames grabados (~2.5s)
 var replay_buf: Array = []
 var replay_i := 0
 
+const POS_NAMES := ["Pilar", "Hooker", "Pilar", "Segunda", "Segunda",
+	"Flanker", "Flanker", "Octavo", "Medioscrum", "Apertura", "Wing",
+	"Centro", "Centro", "Wing", "Fullback"]
+
 # maul
 var maul_team := -1
 var maul_dir := 1.0
@@ -256,6 +260,7 @@ func start_match(home: int, away: int, m := "friendly") -> void:
 	tackles_n = [0, 0]
 	pending_maul_team = -1
 	maul_team = -1
+	ui.hide_stats()
 	replay_buf.clear()
 	weather = "rain" if rng.randf() < 0.3 else "clear"
 	var tod_roll := rng.randf()
@@ -533,6 +538,7 @@ func _check_clock() -> void:
 		else:
 			ui.show_message("FINAL · %s %d — %d %s%s · R revancha · M menú" %
 				[_club_name(0), score[0], score[1], _club_name(1), stats], 999.0)
+		ui.show_stats(_build_stats_text(poss_pct))
 
 
 func _check_boundaries() -> void:
@@ -872,6 +878,45 @@ func _confetti(pos: Vector3, club_col: Color) -> void:
 	(confetti.process_material as ParticleProcessMaterial).color_ramp = gt
 	confetti.global_position = pos + Vector3(0.0, 2.0, 0.0)
 	confetti.restart()
+
+
+func _build_stats_text(poss_pct: String) -> String:
+	var t := "  FINAL DEL PARTIDO\n\n"
+	t += "  %s  %d — %d  %s\n" % [_club_name(0), score[0], score[1], _club_name(1)]
+	t += "  Posesión %s  ·  Tries %d-%d  ·  Placajes %d-%d\n\n" % [
+		poss_pct.replace("Posesión ", "").replace("· ", ""),
+		tries_n[0], tries_n[1], tackles_n[0], tackles_n[1]]
+	# goleadores
+	var scorers: Array = []
+	for p in players:
+		if p.stat_tries > 0:
+			scorers.append(p)
+	scorers.sort_custom(func(a, b): return a.stat_tries > b.stat_tries)
+	if scorers.size() > 0:
+		t += "  TRIES\n"
+		for p in scorers.slice(0, 5):
+			t += "  #%d %s — %d try%s\n" % [p.index + 1, POS_NAMES[p.index],
+				p.stat_tries, "s" if p.stat_tries > 1 else ""]
+		t += "\n"
+	# placadores
+	var tacklers := players.duplicate()
+	tacklers.sort_custom(func(a, b): return a.stat_tackles > b.stat_tackles)
+	if tacklers.size() > 0 and tacklers[0].stat_tackles > 0:
+		t += "  PLACAJES\n"
+		for p in tacklers.slice(0, 3):
+			t += "  #%d %s — %d\n" % [p.index + 1, POS_NAMES[p.index],
+				p.stat_tackles]
+		t += "\n"
+	# metros corridos
+	var runners := players.duplicate()
+	runners.sort_custom(func(a, b): return a.stat_metros > b.stat_metros)
+	if runners.size() > 0 and runners[0].stat_metros > 20.0:
+		t += "  METROS CON PELOTA\n"
+		for p in runners.slice(0, 3):
+			t += "  #%d %s — %dm\n" % [p.index + 1, POS_NAMES[p.index],
+				int(p.stat_metros)]
+	t += "\n  R revancha · M menú"
+	return t
 
 
 func _resolve_breakdown() -> void:

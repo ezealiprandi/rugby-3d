@@ -324,7 +324,6 @@ func _desired_velocity() -> Vector3:
 				_start_step()
 			if Input.is_action_just_pressed("dummy"):
 				_do_dummy()
-				_start_step()
 			if Input.is_action_just_pressed("fend") and cool_fend <= 0.0:
 				_do_fend()
 		elif Input.is_action_just_pressed("tackle") and dive_cd <= 0.0:
