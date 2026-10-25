@@ -122,31 +122,42 @@ func _build_visual() -> void:
 		var leg := Node3D.new()
 		leg.position = Vector3(side * 0.13 * bulk, 0.98, 0.0)
 		visual.add_child(leg)
-		_capsule(leg, 0.1, 0.62, -0.4, skin_mat)
-		_capsule(leg, 0.105, 0.22, -0.66, trim_mat)
-		_box(leg, Vector3(0.2, 0.1, 0.3), Vector3(0, -0.9, 0.05), _mat(Color(0.15, 0.15, 0.15)))
+		_capsule(leg, 0.115 * bulk, 0.34, -0.16, shorts_mat)   # muslo bajo el short
+		_capsule(leg, 0.095, 0.42, -0.52, skin_mat)            # rodilla/pantorrilla
+		_capsule(leg, 0.1, 0.26, -0.72, trim_mat)              # media
+		_capsule(leg, 0.105, 0.07, -0.62, _mat(col_primary))   # vuelta de la media
+		var boot_sel := (index * 2 + team) % 6
+		var boot_c := Color(0.12, 0.12, 0.12)                  # la mayoria negros
+		if boot_sel == 4:
+			boot_c = Color(0.9, 0.9, 0.9)
+		elif boot_sel == 5:
+			boot_c = Color(0.9, 0.55, 0.1)
+		_box(leg, Vector3(0.2, 0.11, 0.32), Vector3(0, -0.9, 0.05), _mat(boot_c))
 		if side < 0.0:
 			leg_l = leg
 		else:
 			leg_r = leg
 
 	_box(visual, Vector3(0.42 * bulk, 0.3, 0.32 * bulk), Vector3(0, 1.02, 0), shorts_mat)
-	_box(visual, Vector3(0.48 * bulk, 0.62, 0.3 * bulk), Vector3(0, 1.38, 0), jersey_mat)
+	_box(visual, Vector3(0.5 * bulk, 0.34, 0.34 * bulk), Vector3(0, 1.52, 0), jersey_mat)
+	_box(visual, Vector3(0.44 * bulk, 0.32, 0.28 * bulk), Vector3(0, 1.2, 0), jersey_mat)
+	_capsule(visual, 0.09, 0.18, 1.74, skin_mat)
 
 	for side in [-1.0, 1.0]:
 		var arm := Node3D.new()
-		arm.position = Vector3(side * (0.28 * bulk + 0.08), 1.6, 0.0)
+		arm.position = Vector3(side * (0.3 * bulk + 0.06), 1.58, 0.0)
 		visual.add_child(arm)
-		_capsule(arm, 0.085, 0.5, -0.28, jersey_mat)
-		_capsule(arm, 0.075, 0.2, -0.58, skin_mat)
+		_capsule(arm, 0.11, 0.16, -0.03, jersey_mat)    # hombro
+		_capsule(arm, 0.095, 0.4, -0.26, jersey_mat)    # manga + biceps
+		_capsule(arm, 0.075, 0.22, -0.56, skin_mat)     # antebrazo
+		if side > 0.0 and (index * 7 + team) % 4 == 0:
+			_capsule(arm, 0.08, 0.09, -0.68, trim_mat)  # munequera
 		if side < 0.0:
 			arm_l = arm
 		else:
 			arm_r = arm
 
-	_capsule(visual, 0.14, 0.3, 1.88, skin_mat)
-
-	# variedad física: altura, pelo y barba (determinístico por casaca)
+	# variedad física: altura determinística por casaca
 	var hvar := 0.94 + fmod(float(index * 5 + team * 2), 12.0) / 100.0 * 6.0
 	if is_forward():
 		hvar += 0.04
@@ -155,12 +166,40 @@ func _build_visual() -> void:
 		Color(0.38, 0.24, 0.1), Color(0.7, 0.55, 0.25), Color(0.5, 0.2, 0.08)]
 	var hair_c: Color = hair_cols[(index + team) % 5]
 	var hair_sel := (index * 3 + team) % 10
-	if hair_sel < 8 and index >= 3:      # ~20% pelados; 1ra línea usa casco
-		_box(visual, Vector3(0.24, 0.1, 0.25), Vector3(0, 1.99, -0.02),
-			_mat(hair_c))
-	if hair_sel >= 6 and index >= 3:     # barba en algunos
-		_box(visual, Vector3(0.15, 0.07, 0.06), Vector3(0, 1.79, 0.11),
-			_mat(hair_c))
+
+	# cabeza con facciones: orejas, cejas, ojos, nariz, boca
+	_capsule(visual, 0.135, 0.3, 1.9, skin_mat)
+	for side in [-1.0, 1.0]:
+		_box(visual, Vector3(0.03, 0.07, 0.05),
+			Vector3(side * 0.135, 1.89, 0), skin_mat)
+		_box(visual, Vector3(0.05, 0.016, 0.012),
+			Vector3(side * 0.052, 1.925, 0.115), _mat(hair_c.darkened(0.4)))
+		_box(visual, Vector3(0.04, 0.02, 0.012),
+			Vector3(side * 0.05, 1.898, 0.118), _mat(Color(0.08, 0.08, 0.1)))
+	_box(visual, Vector3(0.045, 0.06, 0.04), Vector3(0, 1.855, 0.12),
+		_mat(skin.darkened(0.06)))
+	_box(visual, Vector3(0.07, 0.014, 0.012), Vector3(0, 1.778, 0.11),
+		_mat(Color(0.45, 0.25, 0.22)))
+
+	# peinados (la 1ra línea lleva casco de scrum)
+	if index >= 3:
+		if hair_sel < 5:                     # corte corto
+			_box(visual, Vector3(0.24, 0.1, 0.25), Vector3(0, 1.99, -0.02),
+				_mat(hair_c))
+		elif hair_sel < 7:                   # melena
+			_box(visual, Vector3(0.24, 0.1, 0.25), Vector3(0, 1.99, -0.02),
+				_mat(hair_c))
+			_box(visual, Vector3(0.2, 0.34, 0.1), Vector3(0, 1.78, -0.14),
+				_mat(hair_c))
+		elif hair_sel == 7:                  # vincha del club
+			_box(visual, Vector3(0.24, 0.1, 0.25), Vector3(0, 1.99, -0.02),
+				_mat(hair_c))
+			_box(visual, Vector3(0.27, 0.05, 0.27), Vector3(0, 1.94, -0.01),
+				trim_mat)
+		# 8-9: pelado
+		if hair_sel >= 5:                    # barba
+			_box(visual, Vector3(0.15, 0.09, 0.06), Vector3(0, 1.76, 0.1),
+				_mat(hair_c))
 
 	# casco de scrum en la primera línea
 	if index < 3:
