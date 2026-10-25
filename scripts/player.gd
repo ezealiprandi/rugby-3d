@@ -20,6 +20,7 @@ var dive_cd := 0.0                  # cooldown tras lanzarse
 var step_t := 0.0                  # burst del sidestep
 var step_dir := Vector3(0, 0, 1)
 var step_cd := 0.0
+var surge_t := 0.0                 # pick and go: carga automática hacia adelante
 var facing := Vector3(0, 0, 1)
 var hold_pos := Vector3.ZERO
 var col_primary := Color(0.2, 0.4, 0.9)
@@ -204,6 +205,16 @@ func _physics_process(delta: float) -> void:
 		_update_visual(delta, 0.0)
 		return
 
+	# pick and go: el forward carga hacia adelante unos metros
+	if surge_t > 0.0:
+		surge_t -= delta
+		var sd := Vector3(0.0, 0.0, float(game.attack_dir[team]))
+		velocity.x = sd.x * 8.5
+		velocity.z = sd.z * 8.5
+		facing = sd
+		_apply_gravity_move(delta)
+		_update_visual(delta, 8.5)
+		return
 	# sidestep: burst lateral rapido que dificulta placarte
 	if step_t > 0.0:
 		step_t -= delta

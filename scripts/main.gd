@@ -138,6 +138,7 @@ func _register_input() -> void:
 	_add_key_action("bomb", [KEY_V])
 	_add_key_action("step", [KEY_X])
 	_add_key_action("crosskick", [KEY_Z])
+	_add_key_action("touchkick", [KEY_T])
 	_add_key_action("kick", [KEY_K])
 	_add_key_action("dropgoal", [KEY_G])
 	_add_key_action("fend", [KEY_J])
@@ -398,6 +399,9 @@ func _process(delta: float) -> void:
 				_resolve_breakdown()
 		Phase.SCRUM:
 			phase_t -= delta
+			# los packs empujan: el scrum gana metros
+			pending_spot.z += float(attack_dir[pending_team]) * 1.3 * delta
+			pending_spot.z = clampf(pending_spot.z, -TRY_Z + 6.0, TRY_Z - 6.0)
 			if phase_t <= 0.0:
 				_resolve_scrum()
 		Phase.LINEOUT:
@@ -407,9 +411,11 @@ func _process(delta: float) -> void:
 		Phase.PENALTY:
 			phase_t -= delta
 			if pending_team == 0:
-				# el jugador decide: tap rápido (Espacio) o a los palos (K)
+				# el jugador decide: tap (Espacio), palos (K) o al touch (T)
 				if _pen_in_range() and Input.is_action_just_pressed("kick"):
 					_setup_penalty_goal()
+				elif Input.is_action_just_pressed("touchkick"):
+					_pen_touch_kick()
 				elif Input.is_action_just_pressed("pass") or phase_t <= 0.0:
 					_resolve_penalty()
 			elif phase_t <= 0.0:
@@ -779,6 +785,16 @@ func _resolve_breakdown() -> void:
 		_event_penalty(ruck_team, adv,
 			"¡PENAL para %s! Infracción en el ruck" % _club_name(ruck_team))
 		return
+	# pick and go: un forward cerca del ruck puede picar y avanzar
+	if pending_team == ruck_team and rng.randf() < 0.4:
+		var f := _nearest_forward(pending_team, pending_spot, 4.0)
+		if f != null:
+			ball.set_carrier(f)
+			f.surge_t = 0.5
+			ui.flash_hint("¡Pick and go!")
+			phase = Phase.PLAY
+			jackal_pressed = false
+			return
 	# el medioscrum (9) tiene prioridad si está cerca
 	var nine := players[8 + ruck_team * TEAM_SIZE]
 	var p: RugbyPlayer = null
@@ -835,6 +851,14 @@ func _event_scrum(feed_team: int, spot: Vector3, msg: String) -> void:
 
 
 func _resolve_scrum() -> void:
+	if rng.randf() < 0.08:
+		# tight head: el pack rival roba la introducción
+		var tn := players[8 + (1 - pending_team) * TEAM_SIZE]
+		ball.set_carrier(tn)
+		ui.show_message("¡TIGHT HEAD! Robo del scrum de %s"
+			% _club_name(1 - pending_team), 2.0)
+		phase = Phase.PLAY
+		return
 	var nine := players[8 + pending_team * TEAM_SIZE]
 	var p: RugbyPlayer = nine if nine.tackled <= 0.0 else _nearest(pending_team, pending_spot, null, 999.0)
 	if p != null:
@@ -874,8 +898,17 @@ func _resolve_lineout() -> void:
 		ball.pass_from = null   # sin knock-on en el lineout
 	else:
 		ball.set_carrier(_nearest(catch_team, pending_spot, null, 999.0))
-	# si agarra limpio, se arma el maul y los forwards empujan
-	pending_maul_team = catch_team if rng.randf() < 0.7 else -1
+	# opciones: maul 55% / tirar largo al 10 20% / sale el 9 25%
+	pending_maul_team = -1
+	var roll := rng.randf()
+	if roll < 0.55:
+		pending_maul_team = catch_team
+	elif roll < 0.75:
+		var ten := players[9 + catch_team * TEAM_SIZE]
+		if ten.tackled <= 0.0:
+			ball.throw_to(ten, catcher)
+			ball.pass_from = null
+			ui.flash_hint("¡Lineout largo al 10!")
 	phase = Phase.PLAY
 
 
@@ -951,11 +984,34 @@ func _pen_in_range() -> bool:
 	return dist < 44.0 and absf(pending_spot.x) < 28.0
 
 
+func _pen_touch_kick() -> void:
+	# patada a la banda → lineout propio donde cae
+	var side := signf(pending_spot.x)
+	if side == 0.0:
+		side = 1.0
+	ball.global_position = pending_spot + Vector3(0.0, 1.1, 0.0)
+	ball.release()
+	ball.was_kicked = true
+	ball.last_touch_team = pending_team
+	ball.pass_from = null
+	var dir := Vector3(side, 0.0, float(attack_dir[pending_team]) * 0.7).normalized()
+	ball.linear_velocity = dir * 22.0 + Vector3(0.0, 7.5, 0.0)
+	ball.angular_velocity = Vector3(dir.z, 0.0, -dir.x) * 14.0
+	ui.show_message("¡Patada al touch! Lineout para %s"
+		% _club_name(pending_team), 2.0)
+	phase = Phase.PLAY
+
+
 func _resolve_penalty() -> void:
 	# la IA decide a los palos si está en rango
-	if pending_team == 1 and _pen_in_range() and rng.randf() < 0.45:
-		_setup_penalty_goal()
-		return
+	if pending_team == 1:
+		if _pen_in_range() and rng.randf() < 0.45:
+			_setup_penalty_goal()
+			return
+		# la IA patea al touch cuando está lejos de los palos
+		if rng.randf() < 0.4:
+			_pen_touch_kick()
+			return
 	var p := _nearest(pending_team, pending_spot, null, 999.0)
 	if p != null:
 		ball.set_carrier(p)
@@ -1048,6 +1104,20 @@ func _lineout_pos(p: RugbyPlayer) -> Vector3:
 
 
 # ─── Utilidades ─────────────────────────────────────────────────────────────
+func _nearest_forward(team: int, pos: Vector3, maxd: float) -> RugbyPlayer:
+	var best: RugbyPlayer = null
+	var bd := maxd
+	for p in players:
+		if p.team != team or not p.is_forward() or p.tackled > 0.0 \
+				or p.sin_bin_t > 0.0:
+			continue
+		var d := p.global_position.distance_to(pos)
+		if d < bd:
+			bd = d
+			best = p
+	return best
+
+
 func _nearest(team: int, pos: Vector3, exclude: RugbyPlayer, maxd: float) -> RugbyPlayer:
 	var best: RugbyPlayer = null
 	var bd := maxd

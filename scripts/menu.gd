@@ -140,6 +140,7 @@ J — fend (quitarse el placaje)
 C — grubber (patada rasante por el piso)
 V — up and under (patada alta disputada)
 Z — cross kick (al wing del lado opuesto)
+T — en un penal: patada al touch (lineout propio)
 
 Reglas extra: placaje alto y "no soltó" = penal ·
 atrapar una patada rival en tus 22 = marca
