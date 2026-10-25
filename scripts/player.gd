@@ -857,15 +857,15 @@ func _update_visual(delta: float, h_speed: float) -> void:
 		return
 	if dive_t > 0.0:
 		visual.rotation.x = lerpf(visual.rotation.x, -1.5, delta * 14.0)
-		visual.position.y = lerpf(visual.position.y, -0.45, delta * 14.0)
+		visual.position.y = lerpf(visual.position.y, 0.18, delta * 14.0)
 		leg_l.rotation.x = lerpf(leg_l.rotation.x, 0.9, delta * 10.0)
 		leg_r.rotation.x = lerpf(leg_r.rotation.x, 0.4, delta * 10.0)
 		arm_l.rotation.x = lerpf(arm_l.rotation.x, -2.2, delta * 12.0)
 		arm_r.rotation.x = lerpf(arm_r.rotation.x, -2.2, delta * 12.0)
 		return
 	if tackled > 0.0:
-		visual.rotation.x = lerpf(visual.rotation.x, -1.4, delta * 8.0)
-		visual.position.y = lerpf(visual.position.y, -0.7, delta * 8.0)
+		visual.rotation.x = lerpf(visual.rotation.x, -1.45, delta * 8.0)
+		visual.position.y = lerpf(visual.position.y, 0.12, delta * 8.0)
 		leg_l.rotation.x = lerpf(leg_l.rotation.x, 0.0, delta * 6.0)
 		leg_r.rotation.x = lerpf(leg_r.rotation.x, 0.0, delta * 6.0)
 		arm_l.rotation.x = lerpf(arm_l.rotation.x, 0.0, delta * 6.0)
