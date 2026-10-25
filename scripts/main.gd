@@ -984,6 +984,9 @@ func _update_conversion(delta: float) -> void:
 						conv_power = rng.randf_range(0.12, 0.28)
 				_conv_execute()
 		ConvState.FLY:
+			# paneo broadcast: sigue la pelota hacia los palos
+			cam.set_override(conv_kick_pos + Vector3(0, 4.5, -conv_dir * 10.5),
+				ball.global_position + Vector3(0, 0.5, 0))
 			var z := ball.global_position.z
 			var posts_z := float(conv_dir) * TRY_Z
 			var was := (conv_prev_z - posts_z) * conv_dir

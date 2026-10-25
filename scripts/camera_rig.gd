@@ -39,15 +39,17 @@ func _process(delta: float) -> void:
 		global_position = override_pos
 		look_at(override_look, Vector3.UP)
 		return
-	# replay del try: cámara baja y cerca, estilo broadcast
+	# replay del try: la cámara orbita y desciende alrededor de la jugada
 	if game.phase == RugbyGame.Phase.REPLAY:
 		var bp2 := game.ball.global_position
-		var tz2 := clampf(bp2.z, -46.0, 46.0)
-		var tx2 := clampf(bp2.x, -24.0, 24.0) * 0.4
-		sz = lerpf(sz, tz2, minf(1.0, delta * 4.5))
-		sx = lerpf(sx, tx2, minf(1.0, delta * 4.5))
-		global_position = Vector3(-30.0 + sx, 17.0, sz)
-		look_at(Vector3(3.0 + sx, 0.8, sz), Vector3.UP)
+		var t := clampf(float(game.replay_i) /
+			maxf(1.0, float(game.replay_buf.size())), 0.0, 1.0)
+		var ang := lerpf(-2.3, -0.85, t)               # barrido ~83°
+		var dist := lerpf(27.0, 18.0, t)               # se acerca
+		var h := lerpf(16.0, 7.5, t)                   # y baja
+		var tgt := bp2 + Vector3(sin(ang) * dist, h, cos(ang) * dist)
+		global_position = global_position.lerp(tgt, minf(1.0, delta * 5.0))
+		look_at(bp2 + Vector3(0.0, 1.0, 0.0), Vector3.UP)
 		return
 	var bp := game.ball.global_position
 	var tz := clampf(bp.z, -46.0, 46.0)
