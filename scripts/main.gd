@@ -66,6 +66,7 @@ var conv_t := 0.0
 var conv_done_flag := false
 var conv_kicker: RugbyPlayer = null
 var confetti: GPUParticles3D = null
+var celebrate_all_team := -1   # todo el equipo festeja (campeón del torneo)
 var conv_pts := 2                     # 2 conversión · 3 penal a los palos
 
 # drop goal en juego abierto
@@ -313,6 +314,7 @@ func return_to_menu() -> void:
 		p.queue_free()
 	players.clear()
 	controlled = null
+	celebrate_all_team = -1
 	ball.release()
 	ball.freeze = true
 	ball.global_position = Vector3(0.0, 0.6, 0.0)
@@ -444,6 +446,8 @@ func _process(delta: float) -> void:
 			_check_clock()
 			_check_boundaries()
 		Phase.REPLAY:
+			if Input.is_action_just_pressed("pass"):
+				replay_i = replay_buf.size()   # Espacio: saltea el replay
 			_replay_step()
 		Phase.MAUL:
 			_update_maul(delta)
@@ -541,14 +545,23 @@ func _check_clock() -> void:
 				tries_n[0], tries_n[1])
 			_sim_fecha()
 			table_txt = "\n\n" + _table_text()
-			ui.show_message(
-				"FINAL · %s %d — %d %s · Torneo %dG-%dP%s · R fecha siguiente · M menú"
-				% [_club_name(0), score[0], score[1], _club_name(1),
-				tour_wins, tour_losses, stats], 999.0)
+			# última fecha y campeón → festejo del equipo entero
+			if tour_pos >= tour_fixture.size() - 1 \
+					and _table_order()[0] == home_idx:
+				celebrate_all_team = 0
+				_confetti(players[0].global_position,
+					RugbyTeams.CLUBS[home_idx]["primary"])
+				ui.show_message("¡¡SOS CAMPEÓN DEL TORNEO URT!!", 999.0)
+			if celebrate_all_team < 0:
+				ui.show_message(
+					"FINAL · %s %d — %d %s · Torneo %dG-%dP%s · R fecha siguiente · M menú"
+					% [_club_name(0), score[0], score[1], _club_name(1),
+					tour_wins, tour_losses, stats], 999.0)
 		else:
 			ui.show_message("FINAL · %s %d — %d %s%s · R revancha · M menú" %
 				[_club_name(0), score[0], score[1], _club_name(1), stats], 999.0)
-		ui.show_stats(_build_stats_text(poss_pct) + table_txt)
+		if celebrate_all_team < 0:
+			ui.show_stats(_build_stats_text(poss_pct) + table_txt)
 
 
 func _check_boundaries() -> void:

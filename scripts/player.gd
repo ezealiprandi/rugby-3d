@@ -803,7 +803,7 @@ func _update_visual(delta: float, h_speed: float) -> void:
 			and team == game.pending_team and index in [2, 3, 6]:
 		jump_y = sin((1.0 - game.phase_t) * PI) * 0.55
 	# celebración de try: brazos arriba
-	var celebra: bool = game.celebrating == self and game.phase == RugbyGame.Phase.SCORE
+	var celebra: bool = (game.celebrating == self and game.phase == RugbyGame.Phase.SCORE) or game.celebrate_all_team == team
 	visual.rotation.x = lerpf(visual.rotation.x, run * 0.16, delta * 8.0)
 	visual.position.y = lerpf(visual.position.y, jump_y, delta * 8.0) \
 		+ absf(sin(bob_t)) * 0.05 * run
