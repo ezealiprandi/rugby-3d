@@ -47,7 +47,9 @@ const EN := {
 	"TORNEO URT": "URT TOURNAMENT",
 	"TORNEO URT · 11 fechas": "URT TOURNAMENT · 11 rounds",
 	"PRÁCTICA LIBRE": "FREE PRACTICE",
-	"CONTROLES": "CONTROLS",
+	"CONTROLES": "CONTROLS", "SALIR": "EXIT",
+	"Cerrar el juego": "Quit the game",
+	"Un homenaje al rugby tucumano": "A tribute to Tucumán rugby",
 	"OPCIONES": "OPTIONS",
 	"Unión de Rugby de Tucumán": "Tucumán Rugby Union",
 	"Edición clubes · 15 vs 15": "Clubs edition · 15 vs 15",
@@ -318,6 +320,7 @@ func _ready() -> void:
 		["TABLA URT", _on_table_pressed],
 		["OPCIONES", _on_options_pressed],
 		["CONTROLES", _on_controls_pressed],
+		["SALIR", func(): get_tree().quit()],
 	]
 	for i in nav_items.size():
 		var nb := _nav_button(T(nav_items[i][0]))
@@ -331,6 +334,11 @@ func _ready() -> void:
 	nav_desc.add_theme_color_override("font_color", Color(0.75, 0.8, 0.72))
 	nav_desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	nav_desc.custom_minimum_size = Vector2(400, 44)
+	var hom := _lbl(14)
+	hom.add_theme_color_override("font_color", Color(0.6, 0.65, 0.58))
+	hom.text = "Un homenaje al rugby tucumano"
+	content_box.add_child(hom)
+
 	content_box.add_child(nav_desc)
 
 	nav_box.get_parent().move_child(nav_desc, nav_box.get_index() + 1)
@@ -573,6 +581,7 @@ func _set_nav_desc(i: int) -> void:
 		"Posiciones del torneo en curso",
 		"Juego, gráficos, audio, controles y más",
 		"Todas las teclas y reglas extra",
+		"Cerrar el juego",
 	]
 	nav_desc.text = T(keys[i])
 
@@ -601,7 +610,7 @@ func _update_view() -> void:
 			for i in nav_btns.size():
 				nav_btns[i].text = T([
 					"AMISTOSO", "TORNEO URT", "PRÁCTICA LIBRE",
-					"TABLA URT", "OPCIONES", "CONTROLES"][i])
+					"TABLA URT", "OPCIONES", "CONTROLES", "SALIR"][i])
 			nav_btns[nav_idx].grab_focus()
 			_set_nav_desc(nav_idx)
 		Step.HOME:

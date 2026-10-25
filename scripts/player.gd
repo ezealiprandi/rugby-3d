@@ -115,6 +115,7 @@ func _build_visual() -> void:
 	var skin_t := fmod(float(index * 7 + team * 3), 10.0) / 10.0
 	var skin := Color(0.93, 0.78, 0.62).lerp(Color(0.42, 0.29, 0.18), skin_t)
 	var skin_mat := _mat(skin)
+	skin_mat.roughness = 0.72
 	var jersey_mat := _mat(jersey)
 	var jtex: Texture2D = jersey_tex_alt if alt_kit else jersey_tex
 	if jtex != null:
@@ -131,6 +132,8 @@ func _build_visual() -> void:
 		_capsule(leg, 0.095, 0.42, -0.52, skin_mat)            # rodilla/pantorrilla
 		_capsule(leg, 0.1, 0.26, -0.72, trim_mat)              # media
 		_capsule(leg, 0.105, 0.07, -0.62, _mat(col_primary))   # vuelta de la media
+		if (index * 3 + team) % 5 == 0:
+			_capsule(leg, 0.1, 0.06, -0.42, _mat(Color(0.92, 0.92, 0.95)))  # venda
 		var boot_sel := (index * 2 + team) % 6
 		var boot_c := Color(0.12, 0.12, 0.12)                  # la mayoria negros
 		if boot_sel == 4:
@@ -157,6 +160,8 @@ func _build_visual() -> void:
 		_capsule(arm, 0.075, 0.22, -0.56, skin_mat)     # antebrazo
 		if side > 0.0 and (index * 7 + team) % 4 == 0:
 			_capsule(arm, 0.08, 0.09, -0.68, trim_mat)  # munequera
+		if side < 0.0 and index == 9:
+			_capsule(arm, 0.1, 0.1, -0.32, _mat(Color(0.95, 0.95, 0.95)))  # capitán
 		if side < 0.0:
 			arm_l = arm
 		else:
@@ -179,11 +184,16 @@ func _build_visual() -> void:
 			Vector3(side * 0.135, 1.89, 0), skin_mat)
 		_box(visual, Vector3(0.05, 0.016, 0.012),
 			Vector3(side * 0.052, 1.925, 0.115), _mat(hair_c.darkened(0.4)))
-		_box(visual, Vector3(0.04, 0.02, 0.012),
-			Vector3(side * 0.05, 1.898, 0.118), _mat(Color(0.08, 0.08, 0.1)))
+		_box(visual, Vector3(0.05, 0.026, 0.012),
+			Vector3(side * 0.05, 1.898, 0.118), _mat(Color(0.95, 0.95, 0.95)))
+		_box(visual, Vector3(0.024, 0.024, 0.008),
+			Vector3(side * 0.05, 1.898, 0.126), _mat(Color(0.1, 0.15, 0.2)))
+	# mandíbula + nariz + boca
+	_box(visual, Vector3(0.16, 0.08, 0.14), Vector3(0, 1.76, 0.03),
+		_mat(skin.darkened(0.04)))
 	_box(visual, Vector3(0.045, 0.06, 0.04), Vector3(0, 1.855, 0.12),
 		_mat(skin.darkened(0.06)))
-	_box(visual, Vector3(0.07, 0.014, 0.012), Vector3(0, 1.778, 0.11),
+	_box(visual, Vector3(0.07, 0.014, 0.012), Vector3(0, 1.79, 0.105),
 		_mat(Color(0.45, 0.25, 0.22)))
 
 	# peinados (la 1ra línea lleva casco de scrum)
@@ -191,11 +201,19 @@ func _build_visual() -> void:
 		if hair_sel < 5:                     # corte corto
 			_box(visual, Vector3(0.24, 0.1, 0.25), Vector3(0, 1.99, -0.02),
 				_mat(hair_c))
+			for side in [-1.0, 1.0]:
+				_box(visual, Vector3(0.04, 0.14, 0.16),
+					Vector3(side * 0.12, 1.92, -0.03), _mat(hair_c))
+			_box(visual, Vector3(0.2, 0.14, 0.06), Vector3(0, 1.9, -0.13),
+				_mat(hair_c))
 		elif hair_sel < 7:                   # melena
 			_box(visual, Vector3(0.24, 0.1, 0.25), Vector3(0, 1.99, -0.02),
 				_mat(hair_c))
 			_box(visual, Vector3(0.2, 0.34, 0.1), Vector3(0, 1.78, -0.14),
 				_mat(hair_c))
+			for side in [-1.0, 1.0]:
+				_box(visual, Vector3(0.04, 0.14, 0.16),
+					Vector3(side * 0.12, 1.92, -0.03), _mat(hair_c))
 		elif hair_sel == 7:                  # vincha del club
 			_box(visual, Vector3(0.24, 0.1, 0.25), Vector3(0, 1.99, -0.02),
 				_mat(hair_c))
