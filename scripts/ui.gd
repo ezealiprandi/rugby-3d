@@ -47,6 +47,9 @@ var scorer_panel: PanelContainer
 var scorer_lbl: Label
 var scorer_bar: ColorRect
 var scorer_t := 0.0
+var stam_panel: PanelContainer
+var stam_fill: ColorRect
+var stam_name: Label
 var lineup_panel: CenterContainer
 var lineup_home: Label
 var lineup_away: Label
@@ -247,6 +250,16 @@ func _process(delta: float) -> void:
 			var ci := pause_btns.find(get_viewport().gui_get_focus_owner())
 			ci = (ci + pd + pause_btns.size()) % pause_btns.size() if ci >= 0 else 0
 			pause_btns[ci].grab_focus()
+	# energía del controlado
+	if stam_panel != null:
+		var cpl: RugbyPlayer = game.controlled if game != null else null
+		var show_st := cpl != null and game.phase == RugbyGame.Phase.PLAY
+		stam_panel.visible = show_st
+		if show_st:
+			stam_fill.size.x = 198.0 * cpl.stamina
+			stam_fill.color = Color(0.9 - cpl.stamina * 0.55,
+				0.3 + cpl.stamina * 0.55, 0.3)
+			stam_name.text = "#%d %s" % [cpl.index + 1, cpl.pname]
 	if scorer_t > 0.0:
 		scorer_t -= delta
 		if scorer_t <= 0.0:
@@ -694,6 +707,40 @@ func _build_broadcast() -> void:
 	sc.add_child(scorer_lbl)
 	scorer_panel.visible = false
 	add_child(scorer_panel)
+
+	# barra de energía del jugador controlado (abajo al centro)
+	stam_panel = _bcast_panel()
+	stam_panel.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
+	stam_panel.offset_left = -160
+	stam_panel.offset_right = 160
+	stam_panel.offset_top = -74
+	stam_panel.offset_bottom = -46
+	var stvb := HBoxContainer.new()
+	stvb.add_theme_constant_override("separation", 10)
+	stam_panel.add_child(stvb)
+	stam_name = Label.new()
+	stam_name.text = "ENERGÍA"
+	stam_name.add_theme_font_size_override("font_size", 14)
+	stam_name.add_theme_color_override("font_color", Color(0.85, 0.9, 0.8))
+	stvb.add_child(stam_name)
+	var stbar := Panel.new()
+	stbar.custom_minimum_size = Vector2(200, 12)
+	var stbs := StyleBoxFlat.new()
+	stbs.bg_color = Color(0.12, 0.12, 0.15)
+	stbs.border_color = Color(0.4, 0.4, 0.45)
+	stbs.border_width_left = 1
+	stbs.border_width_right = 1
+	stbs.border_width_top = 1
+	stbs.border_width_bottom = 1
+	stbar.add_theme_stylebox_override("panel", stbs)
+	stvb.add_child(stbar)
+	stam_fill = ColorRect.new()
+	stam_fill.color = Color(0.35, 0.85, 0.35)
+	stam_fill.position = Vector2(1, 1)
+	stam_fill.size = Vector2(198, 10)
+	stbar.add_child(stam_fill)
+	stam_panel.visible = false
+	add_child(stam_panel)
 
 
 func tv_show(on: bool) -> void:

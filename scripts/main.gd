@@ -676,6 +676,10 @@ func _check_clock() -> void:
 			hposs = " · Posesión %d%%-%d%%" % [
 				int(poss_t[0] / htot * 100), int(poss_t[1] / htot * 100)]
 		ui.show_message("¡Entretiempo! Cambian de campo" + hposs, 2.8)
+		# ingresan los suplentes: piernas frescas en ambos equipos
+		for p in players:
+			p.stamina = 1.0
+		ui.commentary("Movimiento en los bancos: entra sangre fresca")
 	else:
 		phase = Phase.END
 		_whistle()
