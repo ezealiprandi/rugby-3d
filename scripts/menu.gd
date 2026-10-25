@@ -66,6 +66,7 @@ const EN := {
 	"Próxima fecha": "Next fixture",
 	"FECHA": "ROUND",
 	"TABLA URT —": "URT TABLE —",
+	"RESULTADOS": "RESULTS", "Fecha": "Round", "Torneo terminado": "Tournament over",
 	"Duración del tiempo": "Match half length",
 	"Dificultad IA": "AI difficulty",
 	"Horario": "Time of day", "Clima": "Weather",
@@ -778,7 +779,13 @@ func _fill_table() -> void:
 	if game.tour_pos < game.tour_fixture.size():
 		t += "\n[color=#f5c542]" + T("Próxima fecha") + ": " + 			RugbyTeams.CLUBS[game.home_idx]["name"] + " vs " + 			RugbyTeams.CLUBS[game.tour_fixture[game.tour_pos]]["name"] + 			"[/color]"
 	else:
-		t += "\n[color=#f5c542]Torneo terminado[/color]"
+		t += "\n[color=#f5c542]" + T("Torneo terminado") + "[/color]"
+	if not game.tour_history.is_empty():
+		t += "\n— " + T("RESULTADOS") + " —\n"
+		for i in game.tour_history.size():
+			t += T("Fecha") + " %d:\n" % (i + 1)
+			for r in game.tour_history[i]:
+				t += "   " + r + "\n"
 	table_lbl.text = "[code]" + t + "[/code]"
 
 

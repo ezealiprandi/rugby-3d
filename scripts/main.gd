@@ -25,6 +25,8 @@ var field: RugbyField
 # modos de juego: "friendly" | "tournament" | "practice"
 var mode := "friendly"
 var tour_fixture: Array[int] = []
+var tour_history: Array = []        # resultados por fecha
+var sim_log: Array = []             # resultados simulados de la fecha actual
 var tour_pos := 0
 var tour_wins := 0
 var tour_losses := 0
@@ -319,7 +321,6 @@ func start_match(home: int, away: int, m := "friendly") -> void:
 	mode = m
 	home_idx = home
 	ui.visible = true
-	ui.show_vs(home_idx, away_idx)
 	score = [0, 0]
 	half = 1
 	clock = 0.0
@@ -367,11 +368,14 @@ func start_match(home: int, away: int, m := "friendly") -> void:
 			tour_wins = 0
 			tour_losses = 0
 			tour_table.clear()
+			tour_history.clear()
 			for i in RugbyTeams.CLUBS.size():
 				tour_table.append({"pts": 0, "played": 0, "won": 0,
 					"drawn": 0, "lost": 0, "pf": 0, "pa": 0, "bonus": 0})
 		away = tour_fixture[tour_pos]
 	away_idx = away
+	ui.show_vs(home_idx, away_idx)
+	ui.set_teams(home_idx, away_idx)
 	if field != null:
 		field.tint_crowd(RugbyTeams.CLUBS[home_idx]["primary"],
 			RugbyTeams.CLUBS[away_idx]["primary"])
@@ -625,7 +629,12 @@ func _check_clock() -> void:
 				tour_losses += 1
 			_record_result(home_idx, away_idx, score[0], score[1],
 				tries_n[0], tries_n[1])
+			sim_log.clear()
+			sim_log.append("%s %d-%d %s" % [
+				RugbyTeams.CLUBS[home_idx]["abbr"], score[0],
+				score[1], RugbyTeams.CLUBS[away_idx]["abbr"]])
 			_sim_fecha()
+			tour_history.append(sim_log.duplicate())
 			table_txt = "\n\n" + _table_text()
 			# última fecha y campeón → festejo del equipo entero
 			if tour_pos >= tour_fixture.size() - 1 \
@@ -1384,6 +1393,9 @@ func _sim_fecha() -> void:
 		var sh := maxi(0, int(17 + edge + rng.randi_range(-11, 11)))
 		var sa := maxi(0, int(17 - edge + rng.randi_range(-11, 11)))
 		_record_result(h, a, sh, sa, int(sh / 7.0), int(sa / 7.0))
+		sim_log.append("%s %d-%d %s" % [
+			RugbyTeams.CLUBS[h]["abbr"], sh, sa,
+			RugbyTeams.CLUBS[a]["abbr"]])
 
 
 func _table_order() -> Array:

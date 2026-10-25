@@ -3,6 +3,13 @@ class_name RugbyUI
 
 var score_lbl: Label
 var clock_lbl: Label
+var score_bug: PanelContainer
+var sb_score: Label
+var sb_clock: Label
+var sb_hc: ColorRect
+var sb_ac: ColorRect
+var _abbr_h := ""
+var _abbr_a := ""
 var msg_lbl: Label
 var hint_lbl: Label
 var info_lbl: Label
@@ -51,6 +58,9 @@ func _ready() -> void:
 	clock_lbl.set_anchors_preset(Control.PRESET_TOP_WIDE)
 	clock_lbl.offset_top = 46
 	clock_lbl.offset_bottom = 74
+	# el marcador grande queda oculto: se usa el scorebug TV
+	score_lbl.visible = false
+	clock_lbl.visible = false
 
 	msg_lbl = _mk_label(48)
 	msg_lbl.set_anchors_preset(Control.PRESET_CENTER)
@@ -80,6 +90,7 @@ func _ready() -> void:
 	_build_stats_panel()
 	_build_pause_menu()
 	_build_vs_panel()
+	_build_scorebug()
 
 
 func _build_stats_panel() -> void:
@@ -217,12 +228,62 @@ func _process(delta: float) -> void:
 			hint_lbl.modulate.a = 0.0
 
 
-func set_score(name_a: String, a: int, b: int, name_b: String) -> void:
-	score_lbl.text = "%s  %d  —  %d  %s" % [name_a, a, b, name_b]
+func set_score(_name_a: String, a: int, b: int, _name_b: String) -> void:
+	sb_score.text = "%s  %d — %d  %s" % [_abbr_h, a, b, _abbr_a]
 
 
 func set_clock(t: String) -> void:
-	clock_lbl.text = t
+	sb_clock.text = t
+
+
+func set_teams(h_i: int, a_i: int) -> void:
+	_abbr_h = RugbyTeams.CLUBS[h_i]["abbr"]
+	_abbr_a = RugbyTeams.CLUBS[a_i]["abbr"]
+	sb_hc.color = RugbyTeams.CLUBS[h_i]["primary"]
+	sb_ac.color = RugbyTeams.CLUBS[a_i]["primary"]
+
+
+func _build_scorebug() -> void:
+	score_bug = PanelContainer.new()
+	score_bug.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	score_bug.offset_left = 14
+	score_bug.offset_top = 10
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.01, 0.03, 0.02, 0.82)
+	sb.border_color = Color(1.0, 0.75, 0.15, 0.85)
+	sb.border_width_bottom = 3
+	sb.content_margin_left = 12
+	sb.content_margin_right = 12
+	sb.content_margin_top = 6
+	sb.content_margin_bottom = 6
+	score_bug.add_theme_stylebox_override("panel", sb)
+	add_child(score_bug)
+	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 1)
+	score_bug.add_child(vb)
+	var hb := HBoxContainer.new()
+	hb.add_theme_constant_override("separation", 8)
+	vb.add_child(hb)
+	sb_hc = ColorRect.new()
+	sb_hc.custom_minimum_size = Vector2(6, 22)
+	sb_hc.color = Color(0.5, 0.5, 0.5)
+	hb.add_child(sb_hc)
+	sb_score = Label.new()
+	sb_score.add_theme_font_size_override("font_size", 24)
+	sb_score.add_theme_color_override("font_color", Color(0.96, 0.96, 0.92))
+	sb_score.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
+	sb_score.add_theme_constant_override("outline_size", 5)
+	sb_score.text = "—  0 — 0  —"
+	hb.add_child(sb_score)
+	sb_ac = ColorRect.new()
+	sb_ac.custom_minimum_size = Vector2(6, 22)
+	sb_ac.color = Color(0.5, 0.5, 0.5)
+	hb.add_child(sb_ac)
+	sb_clock = Label.new()
+	sb_clock.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	sb_clock.add_theme_font_size_override("font_size", 15)
+	sb_clock.add_theme_color_override("font_color", Color(0.85, 0.9, 0.8))
+	vb.add_child(sb_clock)
 
 
 func show_message(text: String, dur := 2.0) -> void:
