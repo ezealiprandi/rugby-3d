@@ -115,3 +115,17 @@ godot --headless --path . --script tests/sim_tour.gd    # debe imprimir TOUR TES
 ```
 
 Y con `-- --auto` al ejecutar el juego se salta el menú.
+
+## Contribuir
+
+El proyecto es **código abierto** (MIT): forks, PRs e ideas son bienvenidos.
+
+- Todo el juego se genera por código GDScript — no hay assets externos
+  salvo los WAV procedurales de `assets/` (se regeneran con `tests/gen_audio.gd`).
+- Antes de un PR, corré los dos tests headless y verificá `TEST OK`.
+- Estructura por fases del partido en `scripts/main.gd` (`enum Phase`)
+  y por club en `scripts/teams.gd` (`CLUBS` y `SQUADS`).
+
+## Licencia
+
+MIT — ver [LICENSE](LICENSE).
