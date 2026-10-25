@@ -55,5 +55,5 @@ func _process(delta: float) -> void:
 	var k := minf(1.0, delta * 3.5)
 	sz = lerpf(sz, tz, k)
 	sx = lerpf(sx, tx, k)
-	global_position = Vector3(-58.0 + sx, 42.0, sz)
-	look_at(Vector3(4.0 + sx, 0.0, sz), Vector3.UP)
+	global_position = Vector3(-64.0 + sx, 48.0, sz)
+	look_at(Vector3(5.0 + sx, 0.0, sz), Vector3.UP)

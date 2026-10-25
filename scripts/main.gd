@@ -376,6 +376,7 @@ func start_match(home: int, away: int, m := "friendly") -> void:
 		away = tour_fixture[tour_pos]
 	away_idx = away
 	ui.show_vs(home_idx, away_idx)
+	ui.flash_hint("WASD moverse · Q/E pase · F placaje · K/C/V/Z patadas · Shift sprint", 5.0)
 	ui.set_teams(home_idx, away_idx)
 	if field != null:
 		field.tint_crowd(RugbyTeams.CLUBS[home_idx]["primary"],
@@ -1565,7 +1566,7 @@ func _nearest(team: int, pos: Vector3, exclude: RugbyPlayer, maxd: float) -> Rug
 func find_pass_target(carrier: RugbyPlayer, behind_only := true) -> RugbyPlayer:
 	var d := float(attack_dir[carrier.team])
 	var best: RugbyPlayer = null
-	var bd := 999.0
+	var bd := -999.0
 	for p in players:
 		if p.team != carrier.team or p == carrier or p.tackled > 0.0 \
 				or p.sin_bin_t > 0.0:
@@ -1574,12 +1575,19 @@ func find_pass_target(carrier: RugbyPlayer, behind_only := true) -> RugbyPlayer:
 		if behind_only and fwd > 0.4:
 			continue
 		var dist := carrier.global_position.distance_to(p.global_position)
-		if dist < 2.0:
+		if dist < 2.0 or dist > 16.0:
 			continue
-		if dist < bd:
-			bd = dist
+		var sc := -absf(dist - 8.0)              # distancia ideal ~8m
+		sc -= absf(fwd) * 0.6                    # castiga los muy atrás
+		sc += absf(rel_x(p, carrier)) * 0.28     # premia el ancho
+		if sc > bd:
+			bd = sc
 			best = p
 	return best
+
+
+func rel_x(p: RugbyPlayer, c: RugbyPlayer) -> float:
+	return p.global_position.x - c.global_position.x
 
 
 # busca receptor en un lado concreto del portador
@@ -1615,7 +1623,13 @@ func _select_controlled() -> void:
 	if ball.carrier != null and ball.carrier.team == 0:
 		want = ball.carrier
 	elif phase == Phase.PLAY or phase == Phase.KICKOFF:
-		want = _nearest(0, ball.global_position, null, 999.0)
+		var n := _nearest(0, ball.global_position, null, 999.0)
+		if n != null and controlled != null and controlled.team == 0 				and controlled.tackled <= 0.0 and controlled.sin_bin_t <= 0.0:
+			var dn := n.global_position.distance_to(ball.global_position)
+			var dc := controlled.global_position.distance_to(ball.global_position)
+			want = n if dn < dc * 0.78 else controlled   # histéresis
+		else:
+			want = n
 	if want != controlled:
 		controlled = want
 

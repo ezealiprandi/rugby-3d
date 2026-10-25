@@ -3,8 +3,8 @@ class_name RugbyPlayer
 
 const BASE_SPEED := 7.4
 const SPRINT_SPEED := 9.8
-const AI_CHASE := 7.8
-const AI_JOG := 6.4
+const AI_CHASE := 8.7
+const AI_JOG := 7.0
 
 var game: RugbyGame
 var team := 0
@@ -569,7 +569,7 @@ func _carrier_ai() -> Vector3:
 		_do_drop_goal()
 		return Vector3.ZERO
 
-	return dir * AI_CHASE * rating * speed_mult
+	return dir * AI_CHASE * 1.06 * rating * speed_mult
 
 
 func _support_ai() -> Vector3:
@@ -585,15 +585,15 @@ func _support_ai() -> Vector3:
 		# pods de forwards al costado abierto, listos para la proxima fase
 		var pod := index / 3                 # 0:front row, 1:segundas+8, 2:flankers
 		var in_pod := index % 3
-		var px := clampf(cp.x + wide * (5.0 + pod * 6.5) +
-			(in_pod - 1.0) * 1.7, -31.0, 31.0)
-		var pz := cp.z - d * (1.5 + pod * 1.2)
+		var px := clampf(cp.x + wide * (6.0 + pod * 7.5) +
+			(in_pod - 1.0) * 2.2, -31.0, 31.0)
+		var pz := cp.z - d * (1.5 + pod * 1.6)
 		return _seek(Vector3(px, 0.0, pz), AI_JOG * 1.15 * speed_mult)
 	if index >= 9 and index <= 13:
 		# linea de ataque: el 10 profundo, los demas chatos hacia el lado abierto
 		var order := index - 9               # 10->0 ... 14->4
-		var bx := clampf(cp.x + wide * (4.5 + order * 5.0), -31.0, 31.0)
-		var bz := cp.z - d * (5.5 - order * 0.45)
+		var bx := clampf(cp.x + wide * (5.5 + order * 6.2), -31.0, 31.0)
+		var bz := cp.z - d * (6.5 - order * 0.5)
 		return _seek(Vector3(bx, 0.0, bz), AI_JOG * speed_mult)
 	# fullback: cobertura profunda detras de la jugada
 	return _seek(Vector3(cp.x * 0.4, 0.0, cp.z - d * 15.0), AI_JOG * speed_mult)
@@ -611,13 +611,13 @@ func _defense_ai() -> Vector3:
 		_start_dive(dd.normalized())
 		return dive_dir * 11.0
 	# presion: los dos mas cerca van al portador
-	if rank < 2:
-		return _seek(c.global_position, AI_CHASE * rating * speed_mult)
+	if rank < 3:
+		return _seek(c.global_position, AI_CHASE * 1.08 * rating * speed_mult)
 	var offside_z := c.global_position.z - cdir * 1.4
 	# guards del ruck: forwards cubriendo los bordes del breakdown
 	if is_forward() and rank < 5:
 		var gx := clampf(c.global_position.x +
-			signf(global_position.x - c.global_position.x + 0.01) * 4.5,
+			signf(global_position.x - c.global_position.x + 0.01) * 5.5,
 			-30.0, 30.0)
 		return _seek(Vector3(gx, 0.0, offside_z), AI_JOG * speed_mult)
 	# fullback: cobertura profunda para las patadas
@@ -878,7 +878,7 @@ func _update_visual(delta: float, h_speed: float) -> void:
 		jump_y = sin((1.0 - game.phase_t) * PI) * 0.55
 	# celebración de try: brazos arriba
 	var celebra: bool = (game.celebrating == self and game.phase == RugbyGame.Phase.SCORE) or game.celebrate_all_team == team
-	visual.rotation.x = lerpf(visual.rotation.x, run * 0.16, delta * 8.0)
+	visual.rotation.x = lerpf(visual.rotation.x, run * 0.24, delta * 8.0)
 	visual.position.y = lerpf(visual.position.y, jump_y, delta * 8.0) \
 		+ absf(sin(bob_t)) * 0.05 * run
 	var swing := sin(bob_t) * (0.85 * run)
