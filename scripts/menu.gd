@@ -349,7 +349,7 @@ func _ready() -> void:
 		b.add_theme_font_size_override("font_size", 17)
 		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
 		b.focus_mode = Control.FOCUS_ALL
-		b.icon = RugbyTeams.jersey_texture(i)
+		b.icon = RugbyTeams.jersey_icon(i)
 		b.add_theme_stylebox_override("normal",
 			_btn_style(Color(0.08, 0.12, 0.09, 0.9), Color(0.3, 0.4, 0.3)))
 		b.add_theme_stylebox_override("hover",

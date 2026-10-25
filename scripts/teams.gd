@@ -247,6 +247,18 @@ static func _hem_img() -> Image:
 	return _hem
 
 
+# miniatura de 64px para íconos de menú (el ícono de Button usa tamaño nativo)
+static func jersey_icon(idx: int, alt := false) -> Texture2D:
+	var key := "icon%d|%d" % [idx, int(alt)]
+	if _tex_cache.has(key):
+		return _tex_cache[key]
+	var big: Image = jersey_texture(idx, alt).get_image()
+	big.resize(64, 64, Image.INTERPOLATE_BILINEAR)
+	var tex := ImageTexture.create_from_image(big)
+	_tex_cache[key] = tex
+	return tex
+
+
 # textura compartida de fibra de tela para el canal "detail" del material
 static var _fabric_tex: Texture2D = null
 static func fabric_texture() -> Texture2D:
