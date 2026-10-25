@@ -47,6 +47,7 @@ var sin_bin_t := 0.0                  # tiempo restante en el sin bin
 
 var visual: Node3D
 var marker: MeshInstance3D
+var name_tag: Label3D
 var leg_l: Node3D
 var leg_r: Node3D
 var arm_l: Node3D
@@ -109,10 +110,15 @@ func _box(parent: Node3D, size: Vector3, pos: Vector3, mat: Material) -> MeshIns
 func _build_visual() -> void:
 	visual = Node3D.new()
 	add_child(visual)
-	var bulk := 1.08 if is_forward() else 0.94
+	var ph := absi(pname.hash())           # identidad fija por apellido
+	var bulk_tab := [1.20, 1.16, 1.20, 1.06, 1.06, 1.12, 1.12, 1.12,
+		0.85, 0.90, 0.98, 0.88, 0.93, 0.98, 0.88]
+	var ht_tab := [0.00, -0.01, 0.00, 0.09, 0.09, 0.05, 0.05, 0.05,
+		-0.03, 0.00, 0.01, 0.01, -0.01, 0.01, 0.01]
+	var bulk: float = bulk_tab[index]
 	var jersey := col_secondary if alt_kit else col_primary
 	var trim := col_primary if alt_kit else col_secondary
-	var skin_t := fmod(float(index * 7 + team * 3), 10.0) / 10.0
+	var skin_t := float(ph % 10) / 10.0
 	var skin := Color(0.93, 0.78, 0.62).lerp(Color(0.42, 0.29, 0.18), skin_t)
 	var skin_mat := _mat(skin)
 	skin_mat.roughness = 0.72
@@ -132,9 +138,9 @@ func _build_visual() -> void:
 		_capsule(leg, 0.095, 0.42, -0.52, skin_mat)            # rodilla/pantorrilla
 		_capsule(leg, 0.1, 0.26, -0.72, trim_mat)              # media
 		_capsule(leg, 0.105, 0.07, -0.62, _mat(col_primary))   # vuelta de la media
-		if (index * 3 + team) % 5 == 0:
+		if (ph + index) % 5 == 0:
 			_capsule(leg, 0.1, 0.06, -0.42, _mat(Color(0.92, 0.92, 0.95)))  # venda
-		var boot_sel := (index * 2 + team) % 6
+		var boot_sel := ph % 6
 		var boot_c := Color(0.12, 0.12, 0.12)                  # la mayoria negros
 		if boot_sel == 4:
 			boot_c = Color(0.9, 0.9, 0.9)
@@ -158,7 +164,7 @@ func _build_visual() -> void:
 		_capsule(arm, 0.11, 0.16, -0.03, jersey_mat)    # hombro
 		_capsule(arm, 0.095, 0.4, -0.26, jersey_mat)    # manga + biceps
 		_capsule(arm, 0.075, 0.22, -0.56, skin_mat)     # antebrazo
-		if side > 0.0 and (index * 7 + team) % 4 == 0:
+		if side > 0.0 and (ph + index) % 4 == 0:
 			_capsule(arm, 0.08, 0.09, -0.68, trim_mat)  # munequera
 		if side < 0.0 and index == 9:
 			_capsule(arm, 0.1, 0.1, -0.32, _mat(Color(0.95, 0.95, 0.95)))  # capitán
@@ -167,15 +173,13 @@ func _build_visual() -> void:
 		else:
 			arm_r = arm
 
-	# variedad física: altura determinística por casaca
-	var hvar := 0.94 + fmod(float(index * 5 + team * 2), 12.0) / 100.0 * 6.0
-	if is_forward():
-		hvar += 0.04
+	# variedad física: seed del apellido + contextura real por puesto
+	var hvar: float = 0.94 + float(ph % 12) / 100.0 * 6.0 + ht_tab[index]
 	visual.scale.y = hvar
 	var hair_cols := [Color(0.08, 0.06, 0.05), Color(0.2, 0.12, 0.06),
 		Color(0.38, 0.24, 0.1), Color(0.7, 0.55, 0.25), Color(0.5, 0.2, 0.08)]
-	var hair_c: Color = hair_cols[(index + team) % 5]
-	var hair_sel := (index * 3 + team) % 10
+	var hair_c: Color = hair_cols[ph % 5]
+	var hair_sel := ph % 10
 
 	# cabeza con facciones: orejas, cejas, ojos, nariz, boca
 	_capsule(visual, 0.135, 0.3, 1.9, skin_mat)
@@ -224,6 +228,17 @@ func _build_visual() -> void:
 			_box(visual, Vector3(0.15, 0.09, 0.06), Vector3(0, 1.76, 0.1),
 				_mat(hair_c))
 
+	name_tag = Label3D.new()
+	name_tag.text = "#%d · %s" % [index + 1, pname]
+	name_tag.position = Vector3(0, 2.55, 0)
+	name_tag.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	name_tag.font_size = 72
+	name_tag.modulate = Color(1.0, 0.85, 0.3, 0.95)
+	name_tag.outline_size = 14
+	name_tag.outline_modulate = Color(0, 0, 0, 0.9)
+	name_tag.visible = false
+	add_child(name_tag)
+
 	# casco de scrum en la primera línea
 	if index < 3:
 		var cap := MeshInstance3D.new()
@@ -260,7 +275,10 @@ func _build_visual() -> void:
 
 
 func _process(_delta: float) -> void:
-	marker.visible = game != null and game.controlled == self
+	var is_me := game != null and game.controlled == self
+	marker.visible = is_me
+	if name_tag != null:
+		name_tag.visible = is_me
 
 
 func carry_point() -> Vector3:
