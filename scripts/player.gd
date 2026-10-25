@@ -30,6 +30,8 @@ var stat_tries := 0
 var stat_tackles := 0
 var stat_metros := 0.0
 var facing := Vector3(0, 0, 1)
+var wide_mem := 1.0                   # último lado ancho visto
+var pass_anim_t := 0.0                # gesto del pase
 var hold_pos := Vector3.ZERO
 var col_primary := Color(0.2, 0.4, 0.9)
 var col_secondary := Color(0.1, 0.1, 0.1)
@@ -283,6 +285,8 @@ func _physics_process(delta: float) -> void:
 	# pick and go: el forward carga hacia adelante unos metros
 	if surge_t > 0.0:
 		surge_t -= delta
+	if pass_anim_t > 0.0:
+		pass_anim_t -= delta
 		var sd := Vector3(0.0, 0.0, float(game.attack_dir[team]))
 		velocity.x = sd.x * 8.5
 		velocity.z = sd.z * 8.5
@@ -580,20 +584,25 @@ func _support_ai() -> Vector3:
 	if is_nine():
 		return _seek(cp - Vector3(0.0, 0.0, d * 2.2), AI_CHASE * speed_mult)
 	# lado abierto: el de mas cancha por delante
-	var wide := -signf(cp.x) if absf(cp.x) > 6.0 else 1.0
+	# lado ancho con memoria: solo cambia cuando el balón cruza bien el centro
+	if absf(cp.x) > 8.0:
+		wide_mem = -signf(cp.x)
 	if is_forward():
-		# pods de forwards al costado abierto, listos para la proxima fase
+		# pods a ambos lados del breakdown, como un pack real reagrupando
 		var pod := index / 3                 # 0:front row, 1:segundas+8, 2:flankers
 		var in_pod := index % 3
-		var px := clampf(cp.x + wide * (6.0 + pod * 7.5) +
-			(in_pod - 1.0) * 2.2, -31.0, 31.0)
-		var pz := cp.z - d * (1.5 + pod * 1.6)
+		var pdir := wide_mem if pod % 2 == 0 else -wide_mem
+		var px := clampf(cp.x + pdir * (4.5 + pod * 5.5) +
+			(in_pod - 1.0) * 1.9, -31.0, 31.0)
+		var pz := cp.z - d * (1.5 + pod * 1.4)
 		return _seek(Vector3(px, 0.0, pz), AI_JOG * 1.15 * speed_mult)
 	if index >= 9 and index <= 13:
-		# linea de ataque: el 10 profundo, los demas chatos hacia el lado abierto
+		# línea de backs: 10 profundo; unos al lado ancho, otros al cerrado
 		var order := index - 9               # 10->0 ... 14->4
-		var bx := clampf(cp.x + wide * (5.5 + order * 6.2), -31.0, 31.0)
-		var bz := cp.z - d * (6.5 - order * 0.5)
+		var bdir := wide_mem if order < 3 else -wide_mem
+		var slot := order if order < 3 else order - 3
+		var bx := clampf(cp.x + bdir * (5.0 + slot * 5.5), -31.0, 31.0)
+		var bz := cp.z - d * (6.0 - slot * 0.6)
 		return _seek(Vector3(bx, 0.0, bz), AI_JOG * speed_mult)
 	# fullback: cobertura profunda detras de la jugada
 	return _seek(Vector3(cp.x * 0.4, 0.0, cp.z - d * 15.0), AI_JOG * speed_mult)
@@ -717,6 +726,7 @@ func _do_pass(side := 0) -> void:
 		game.on_forward_pass(self)
 		return
 	game.ball.throw_to(target, self)
+	pass_anim_t = 0.3
 	cool_pass = 0.4
 
 
@@ -844,7 +854,7 @@ func _do_fend() -> void:
 
 
 func _update_visual(delta: float, h_speed: float) -> void:
-	bob_t += delta * (5.0 + h_speed * 0.9)
+	bob_t += delta * (4.0 + h_speed * 1.6)
 	var run := clampf(h_speed / SPRINT_SPEED, 0.0, 1.0)
 	if kick_anim_t > 0.0:
 		var ks := 1.0 - kick_anim_t / 0.6      # 0→1 durante la patada
@@ -880,15 +890,22 @@ func _update_visual(delta: float, h_speed: float) -> void:
 	var celebra: bool = (game.celebrating == self and game.phase == RugbyGame.Phase.SCORE) or game.celebrate_all_team == team
 	visual.rotation.x = lerpf(visual.rotation.x, run * 0.24, delta * 8.0)
 	visual.position.y = lerpf(visual.position.y, jump_y, delta * 8.0) \
-		+ absf(sin(bob_t)) * 0.05 * run
-	var swing := sin(bob_t) * (0.85 * run)
+		+ absf(sin(bob_t)) * 0.06 * run + sin(bob_t * 0.31) * 0.01
+	var swing := sin(bob_t) * (1.05 * run)
 	leg_l.rotation.x = swing
 	leg_r.rotation.x = -swing
-	arm_l.rotation.x = -swing * 0.7
-	arm_r.rotation.x = swing * 0.7
+	arm_l.rotation.x = -swing * 0.85
+	arm_r.rotation.x = swing * 0.85
+	if pass_anim_t > 0.0:                 # gesto del pase
+		var pk := pass_anim_t / 0.3
+		arm_l.rotation.x = lerpf(arm_l.rotation.x, -1.9, pk)
+		arm_r.rotation.x = lerpf(arm_r.rotation.x, -1.9, pk)
+		visual.rotation.y += sin(pk * PI) * 0.12
 	if game != null and game.ball != null and game.ball.carrier == self:
-		arm_l.rotation.x = lerpf(arm_l.rotation.x, -1.1, delta * 10.0)
-		arm_r.rotation.x = lerpf(arm_r.rotation.x, -1.1, delta * 10.0)
+		arm_l.rotation.x = lerpf(arm_l.rotation.x, -0.85, delta * 10.0)
+		arm_r.rotation.x = lerpf(arm_r.rotation.x, -0.85, delta * 10.0)
+		arm_l.rotation.z = lerpf(arm_l.rotation.z, 0.5, delta * 10.0)
+		arm_r.rotation.z = lerpf(arm_r.rotation.z, -0.5, delta * 10.0)
 	if celebra:
 		arm_l.rotation.x = lerpf(arm_l.rotation.x, -2.7, delta * 10.0)
 		arm_r.rotation.x = lerpf(arm_r.rotation.x, -2.7, delta * 10.0)
