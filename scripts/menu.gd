@@ -254,7 +254,7 @@ func _ready() -> void:
 
 	# ===== panel lateral izquierdo =====
 	var side := PanelContainer.new()
-	side.custom_minimum_size = Vector2(940, 0)
+	side.custom_minimum_size = Vector2(720, 0)
 	var side_sb := StyleBoxFlat.new()
 	side_sb.bg_color = Color(0.02, 0.05, 0.035, 0.88)
 	side_sb.border_color = Color(1.0, 0.75, 0.15, 0.55)
@@ -441,10 +441,6 @@ func _ready() -> void:
 	result_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	result_lbl.visible = false
 	svb.add_child(result_lbl)
-
-	var spacer := Control.new()
-	spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	svb.add_child(spacer)
 
 	version_lbl = _lbl(14)
 	version_lbl.add_theme_color_override("font_color", Color(1, 1, 1, 0.45))
@@ -679,7 +675,7 @@ func _fill_rows(exclude: int) -> void:
 	for i in clubs.size():
 		var b := buttons[i]
 		var tag := "  ★ " + T("CAMPEÓN 2026") if i == RugbyTeams.NYG_INDEX else ""
-		b.text = "%s  (%s)%s" % [clubs[i]["name"], clubs[i]["city"], tag]
+		b.text = "%s%s" % [clubs[i]["name"], tag]
 		b.disabled = i == exclude
 		b.modulate = Color(1, 1, 1, 0.35) if i == exclude else Color(1, 1, 1)
 

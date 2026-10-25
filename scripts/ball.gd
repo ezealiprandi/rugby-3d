@@ -35,6 +35,7 @@ func _ready() -> void:
 	sm.height = 0.36
 	mi.mesh = sm
 	mi.rotation.x = PI / 2.0
+	mi.scale.y = 1.5            # alargada: forma de pelota de rugby
 	var mat := StandardMaterial3D.new()
 	mat.albedo_texture = _leather_tex()
 	mat.roughness = 0.62
