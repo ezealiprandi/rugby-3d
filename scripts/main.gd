@@ -130,6 +130,9 @@ func _register_input() -> void:
 	_add_key_action("move_right", [KEY_D, KEY_RIGHT])
 	_add_key_action("sprint", [KEY_SHIFT])
 	_add_key_action("pass", [KEY_SPACE])
+	_add_key_action("pass_left", [KEY_Q])
+	_add_key_action("pass_right", [KEY_E])
+	_add_key_action("tackle", [KEY_F])
 	_add_key_action("kick", [KEY_K])
 	_add_key_action("dropgoal", [KEY_G])
 	_add_key_action("fend", [KEY_J])
@@ -1016,6 +1019,34 @@ func find_pass_target(carrier: RugbyPlayer, behind_only := true) -> RugbyPlayer:
 			continue
 		if dist < bd:
 			bd = dist
+			best = p
+	return best
+
+
+# busca receptor en un lado concreto del portador
+# side: -1 = izquierda, +1 = derecha (relativo a la dirección de ataque)
+func find_pass_target_side(carrier: RugbyPlayer, side: int) -> RugbyPlayer:
+	var d := float(attack_dir[carrier.team])
+	var best: RugbyPlayer = null
+	var bs := -999.0
+	for p in players:
+		if p.team != carrier.team or p == carrier or p.tackled > 0.0 \
+				or p.sin_bin_t > 0.0:
+			continue
+		var rel := p.global_position - carrier.global_position
+		var fwd := rel.z * d
+		if fwd > 0.4:
+			continue                         # sería pase adelantado
+		var dist := rel.length()
+		if dist < 1.5 or dist > 18.0:
+			continue
+		# lat > 0 → está a la izquierda del ataque; side=-1 lo quiere
+		var lat := rel.x * d * float(-side)
+		if lat < -1.2:
+			continue                         # está del lado contrario
+		var sc := lat * 2.5 - dist * 0.25
+		if sc > bs:
+			bs = sc
 			best = p
 	return best
 

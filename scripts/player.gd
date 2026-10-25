@@ -14,6 +14,9 @@ var tackled := 0.0
 var cool_pass := 0.0
 var cool_fend := 0.0
 var cool_kick := 0.0
+var dive_t := 0.0                  # tiempo restante del lance de placaje
+var dive_dir := Vector3(0, 0, 1)
+var dive_cd := 0.0                  # cooldown tras lanzarse
 var facing := Vector3(0, 0, 1)
 var hold_pos := Vector3.ZERO
 var col_primary := Color(0.2, 0.4, 0.9)
@@ -188,12 +191,25 @@ func _physics_process(delta: float) -> void:
 	cool_pass = maxf(0.0, cool_pass - delta)
 	cool_fend = maxf(0.0, cool_fend - delta)
 	cool_kick = maxf(0.0, cool_kick - delta)
+	dive_cd = maxf(0.0, dive_cd - delta)
 	if tackled > 0.0:
 		tackled -= delta
 		velocity.x = 0.0
 		velocity.z = 0.0
 		_apply_gravity_move(delta)
 		_update_visual(delta, 0.0)
+		return
+
+	# lance de placaje: el cuerpo se tira, alcance mayor, si erras caes
+	if dive_t > 0.0:
+		dive_t -= delta
+		velocity.x = dive_dir.x * 11.0
+		velocity.z = dive_dir.z * 11.0
+		_apply_gravity_move(delta)
+		_update_visual(delta, 9.0)
+		_try_tackle()
+		if dive_t <= 0.0:
+			tackled = 0.75               # recuperacion en el suelo
 		return
 
 	var wish := _desired_velocity()
@@ -238,13 +254,26 @@ func _desired_velocity() -> Vector3:
 			* speed_mult
 		if game.ball.carrier == self:
 			if Input.is_action_just_pressed("pass"):
-				_do_pass()
+				_do_pass(0)
+			if Input.is_action_just_pressed("pass_left"):
+				_do_pass(-1)
+			if Input.is_action_just_pressed("pass_right"):
+				_do_pass(1)
 			if Input.is_action_just_pressed("kick"):
 				_do_kick()
 			if Input.is_action_just_pressed("dropgoal"):
 				_do_drop_goal()
 			if Input.is_action_just_pressed("fend") and cool_fend <= 0.0:
 				_do_fend()
+		elif Input.is_action_just_pressed("tackle") and dive_cd <= 0.0:
+			var c := game.ball.carrier
+			var dir := facing
+			if c != null and c.team != team:
+				var to := c.global_position - global_position
+				to.y = 0.0
+				if to.length() > 0.1:
+					dir = to.normalized()
+			_start_dive(dir)
 		return d * sp
 	return _ai_velocity()
 
@@ -398,26 +427,61 @@ func _carrier_ai() -> Vector3:
 func _support_ai() -> Vector3:
 	var c := game.ball.carrier
 	var d := float(game.attack_dir[team])
-	var lane := lerpf(-30.0, 30.0, index / 14.0)
-	var depth := 3.5 + float(index % 4) * 2.5
-	var target := c.global_position + Vector3(lane, 0.0, -d * depth)
-	target.x = clampf(target.x, -31.0, 31.0)
-	if (target.z - c.global_position.z) * d > -1.5:
-		target.z = c.global_position.z - d * 1.5
-	return _seek(target, AI_JOG * speed_mult)
+	var cp := c.global_position
+	# el 9 siempre pegado a la jugada, listo para servir la pelota
+	if is_nine():
+		return _seek(cp - Vector3(0.0, 0.0, d * 2.2), AI_CHASE * speed_mult)
+	# lado abierto: el de mas cancha por delante
+	var wide := -signf(cp.x) if absf(cp.x) > 6.0 else 1.0
+	if is_forward():
+		# pods de forwards al costado abierto, listos para la proxima fase
+		var pod := index / 3                 # 0:front row, 1:segundas+8, 2:flankers
+		var in_pod := index % 3
+		var px := clampf(cp.x + wide * (5.0 + pod * 6.5) +
+			(in_pod - 1.0) * 1.7, -31.0, 31.0)
+		var pz := cp.z - d * (1.5 + pod * 1.2)
+		return _seek(Vector3(px, 0.0, pz), AI_JOG * 1.15 * speed_mult)
+	if index >= 9 and index <= 13:
+		# linea de ataque: el 10 profundo, los demas chatos hacia el lado abierto
+		var order := index - 9               # 10->0 ... 14->4
+		var bx := clampf(cp.x + wide * (4.5 + order * 5.0), -31.0, 31.0)
+		var bz := cp.z - d * (5.5 - order * 0.45)
+		return _seek(Vector3(bx, 0.0, bz), AI_JOG * speed_mult)
+	# fullback: cobertura profunda detras de la jugada
+	return _seek(Vector3(cp.x * 0.4, 0.0, cp.z - d * 15.0), AI_JOG * speed_mult)
 
 
 func _defense_ai() -> Vector3:
 	var c := game.ball.carrier
 	var cdir := float(game.attack_dir[c.team])
-	if _team_rank(c.global_position) < 3:
+	var rank := _team_rank(c.global_position)
+	var dist_c := global_position.distance_to(c.global_position)
+	# el defensor mas cercano se lanza si llega con ventaja
+	if rank == 0 and dive_cd <= 0.0 and dist_c > 2.3 and dist_c < 5.2:
+		var dd := (c.global_position - global_position)
+		dd.y = 0.0
+		_start_dive(dd.normalized())
+		return dive_dir * 11.0
+	# presion: los dos mas cerca van al portador
+	if rank < 2:
 		return _seek(c.global_position, AI_CHASE * rating * speed_mult)
-	if (global_position.z - c.global_position.z) * cdir < -5.0:
-		return _seek(c.global_position, AI_CHASE * 0.95 * rating * speed_mult)
-	var lane := lerpf(-32.0, 32.0, index / 14.0)
-	var line_z := clampf(c.global_position.z + cdir * 7.0, -48.0, 48.0)
-	var target := Vector3(clampf(lane + c.global_position.x * 0.35, -32.0, 32.0), 0.0, line_z)
-	return _seek(target, AI_JOG * rating * speed_mult)
+	var offside_z := c.global_position.z - cdir * 1.4
+	# guards del ruck: forwards cubriendo los bordes del breakdown
+	if is_forward() and rank < 5:
+		var gx := clampf(c.global_position.x +
+			signf(global_position.x - c.global_position.x + 0.01) * 4.5,
+			-30.0, 30.0)
+		return _seek(Vector3(gx, 0.0, offside_z), AI_JOG * speed_mult)
+	# fullback: cobertura profunda para las patadas
+	if index == 14:
+		return _seek(Vector3(c.global_position.x * 0.5, 0.0,
+			clampf(c.global_position.z - cdir * 20.0, -54.0, 54.0)),
+			AI_JOG * speed_mult)
+	# linea defensiva chata sobre el offside, corriendose hacia el balon
+	var lane := lerpf(-30.0, 30.0, index / 14.0)
+	lane = clampf(lane + c.global_position.x * 0.35, -31.0, 31.0)
+	return _seek(Vector3(lane, 0.0, offside_z - cdir * 0.6),
+		AI_JOG * rating * speed_mult)
 
 
 func _try_pickup() -> void:
@@ -447,6 +511,8 @@ func _try_tackle() -> void:
 	if game.phase != RugbyGame.Phase.PLAY:
 		return
 	var reach := RugbyGame.TACKLE_RANGE * (1.0 if game.controlled != self else 1.25)
+	if dive_t > 0.0:
+		reach = 2.1
 	if global_position.distance_to(c.global_position) < reach:
 		if game.rng.randf() < c.break_prob:
 			tackled = 0.8
@@ -455,13 +521,32 @@ func _try_tackle() -> void:
 		game.on_tackle(self, c)
 
 
-func _do_pass() -> void:
-	var target := game.find_pass_target(self, true)
-	if target == null:
-		target = game.find_pass_target(self, false)
+func _start_dive(dir: Vector3) -> void:
+	if tackled > 0.0 or sin_bin_t > 0.0 or dive_t > 0.0 or dive_cd > 0.0:
+		return
+	dive_dir = dir
+	dive_dir.y = 0.0
+	if dive_dir.length() < 0.1:
+		dive_dir = facing
+	dive_dir = dive_dir.normalized()
+	dive_t = 0.45
+	dive_cd = 1.7
+	facing = dive_dir
+
+
+# side: -1 izquierda, +1 derecha, 0 automatico
+func _do_pass(side := 0) -> void:
+	var target: RugbyPlayer = null
+	if side == 0:
+		target = game.find_pass_target(self, true)
 		if target == null:
-			game.ui.flash_hint("¡Sin compañeros cerca!")
-			return
+			target = game.find_pass_target(self, false)
+	else:
+		target = game.find_pass_target_side(self, side)
+	if target == null:
+		game.ui.flash_hint("¡Sin apoyo de ese lado!" if side != 0 \
+			else "¡Sin compañeros cerca!")
+		return
 	var fwd := (target.global_position.z - global_position.z) * float(game.attack_dir[team])
 	if fwd > 0.4:
 		game.on_forward_pass(self)
@@ -515,6 +600,14 @@ func _do_fend() -> void:
 func _update_visual(delta: float, h_speed: float) -> void:
 	bob_t += delta * (5.0 + h_speed * 0.9)
 	var run := clampf(h_speed / SPRINT_SPEED, 0.0, 1.0)
+	if dive_t > 0.0:
+		visual.rotation.x = lerpf(visual.rotation.x, -1.5, delta * 14.0)
+		visual.position.y = lerpf(visual.position.y, -0.45, delta * 14.0)
+		leg_l.rotation.x = lerpf(leg_l.rotation.x, 0.9, delta * 10.0)
+		leg_r.rotation.x = lerpf(leg_r.rotation.x, 0.4, delta * 10.0)
+		arm_l.rotation.x = lerpf(arm_l.rotation.x, -2.2, delta * 12.0)
+		arm_r.rotation.x = lerpf(arm_r.rotation.x, -2.2, delta * 12.0)
+		return
 	if tackled > 0.0:
 		visual.rotation.x = lerpf(visual.rotation.x, -1.4, delta * 8.0)
 		visual.position.y = lerpf(visual.position.y, -0.7, delta * 8.0)

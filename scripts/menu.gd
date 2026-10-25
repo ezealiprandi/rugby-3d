@@ -132,7 +132,9 @@ func _ready() -> void:
 	controls_lbl.add_theme_color_override("font_color", Color(0.92, 0.95, 0.9))
 	controls_lbl.text = """WASD / Flechas — mover
 Shift — sprint
-Espacio — pasar (¡hacia atrás!)
+Q / E — pase a la izquierda / derecha
+Espacio — pase al apoyo más cercano
+F — placaje (lance a voluntad en defensa)
 J — fend (quitarse el placaje)
 K — patada larga · en un penal: a los palos (+3)
 G — drop goal (en juego, cerca de los palos)
