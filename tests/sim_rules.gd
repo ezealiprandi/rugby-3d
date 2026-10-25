@@ -105,7 +105,7 @@ func _process(_delta: float) -> bool:
 		10:
 			if game.phase == RugbyGame.Phase.PLAY:
 				print("> try+conversión IA ok (score=%s)" % str(game.score))
-				game.clock = game.HALF_LEN - 1.0
+				game.clock = game.half_len - 1.0
 				st = 11
 		11:
 			if game.phase == RugbyGame.Phase.BETWEEN \
@@ -114,7 +114,7 @@ func _process(_delta: float) -> bool:
 				st = 12
 		12:
 			if game.phase == RugbyGame.Phase.PLAY:
-				game.clock = game.HALF_LEN - 1.0
+				game.clock = game.half_len - 1.0
 				st = 13
 		13:
 			if game.phase == RugbyGame.Phase.END:

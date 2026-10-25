@@ -4,7 +4,7 @@ class_name RugbyMenu
 # Menú principal: título → elegir equipo local → elegir rival → partido.
 # Hecho con contenedores + botones: funciona con mouse y teclado, y se adapta
 # a cualquier resolución de ventana.
-enum Step { HIDDEN, TITLE, HOME, AWAY, CONTROLS }
+enum Step { HIDDEN, TITLE, HOME, AWAY, CONTROLS, OPTIONS }
 
 var game: RugbyGame
 var step := Step.HIDDEN
@@ -21,7 +21,10 @@ var play_btn: Button
 var tourney_btn: Button
 var practice_btn: Button
 var controls_btn: Button
+var options_btn: Button
 var controls_lbl: Label
+var opt_box: VBoxContainer
+var opt_btns: Array[Button] = []
 var grid: GridContainer
 var sel_row: HBoxContainer
 var buttons: Array[Button] = []
@@ -131,6 +134,32 @@ func _ready() -> void:
 	controls_btn = _mode_button("CONTROLES", Color(0.15, 0.18, 0.3), Color(0.5, 0.6, 0.9))
 	controls_btn.pressed.connect(_on_controls_pressed)
 	vb.add_child(controls_btn)
+
+	options_btn = _mode_button("OPCIONES", Color(0.22, 0.16, 0.3), Color(0.7, 0.55, 0.95))
+	options_btn.pressed.connect(_on_options_pressed)
+	vb.add_child(options_btn)
+
+	# filas de opciones (ciclan valor con Enter/click)
+	opt_box = VBoxContainer.new()
+	opt_box.alignment = BoxContainer.ALIGNMENT_CENTER
+	opt_box.add_theme_constant_override("separation", 8)
+	opt_box.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	opt_box.visible = false
+	vb.add_child(opt_box)
+	for i in 5:
+		var ob := Button.new()
+		ob.custom_minimum_size = Vector2(460, 42)
+		ob.add_theme_font_size_override("font_size", 20)
+		ob.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		ob.add_theme_stylebox_override("normal",
+			_btn_style(Color(0.1, 0.1, 0.14, 0.9), Color(0.4, 0.35, 0.55)))
+		ob.add_theme_stylebox_override("hover",
+			_btn_style(Color(0.2, 0.16, 0.3), Color(0.8, 0.65, 1.0)))
+		ob.add_theme_stylebox_override("focus",
+			_btn_style(Color(0.2, 0.16, 0.3), Color(1.0, 0.85, 0.2)))
+		ob.pressed.connect(_cycle_option.bind(i))
+		opt_box.add_child(ob)
+		opt_btns.append(ob)
 	controls_lbl = _lbl(22)
 	controls_lbl.add_theme_color_override("font_color", Color(0.92, 0.95, 0.9))
 	controls_lbl.text = """WASD / Flechas — mover
@@ -240,6 +269,8 @@ func _update_view() -> void:
 	tourney_btn.visible = is_title
 	practice_btn.visible = is_title
 	controls_btn.visible = is_title
+	options_btn.visible = is_title
+	opt_box.visible = step == Step.OPTIONS
 	sel_row.visible = step == Step.HOME or step == Step.AWAY
 	controls_lbl.visible = is_controls
 
@@ -266,6 +297,11 @@ func _update_view() -> void:
 		Step.CONTROLS:
 			prompt_lbl.text = "CONTROLES"
 			footer_lbl.text = "Esc volver"
+		Step.OPTIONS:
+			prompt_lbl.text = "OPCIONES"
+			footer_lbl.text = "Enter/click cambia el valor · Esc guarda y vuelve"
+			_refresh_options()
+			opt_btns[0].grab_focus()
 
 
 func _fill_rows(exclude: int) -> void:
@@ -299,6 +335,16 @@ func _process(_delta: float) -> void:
 			_move_cursor(1)
 		elif Input.is_action_just_pressed("move_left"):
 			_move_cursor(-1)
+	elif step == Step.OPTIONS:
+		var d := 0
+		if Input.is_action_just_pressed("move_down"):
+			d = 1
+		elif Input.is_action_just_pressed("move_up"):
+			d = -1
+		if d != 0:
+			var ci := opt_btns.find(get_viewport().gui_get_focus_owner())
+			ci = (ci + d + opt_btns.size()) % opt_btns.size() if ci >= 0 else 0
+			opt_btns[ci].grab_focus()
 
 
 func _move_cursor(delta: int) -> void:
@@ -327,7 +373,7 @@ func _update_preview() -> void:
 
 func _back() -> void:
 	match step:
-		Step.HOME, Step.CONTROLS:
+		Step.HOME, Step.CONTROLS, Step.OPTIONS:
 			step = Step.TITLE
 		Step.AWAY:
 			step = Step.HOME
@@ -350,6 +396,54 @@ func flash_result(msg: String) -> void:
 func _on_controls_pressed() -> void:
 	step = Step.CONTROLS
 	_update_view()
+
+
+func _on_options_pressed() -> void:
+	step = Step.OPTIONS
+	_update_view()
+
+
+func _opt_info(i: int) -> Array:
+	match i:
+		0:
+			return ["Duración del tiempo", "%d min" % int(game.half_len / 60.0)]
+		1:
+			return ["Dificultad IA",
+				["Fácil", "Normal", "Difícil"][game.opt_difficulty]]
+		2:
+			return ["Horario", {"random": "Aleatorio", "day": "Día",
+				"sunset": "Atardecer", "night": "Noche"}[game.opt_tod]]
+		3:
+			return ["Clima", {"random": "Aleatorio", "clear": "Despejado",
+				"rain": "Lluvia"}[game.opt_weather]]
+		4:
+			return ["Sonido", "Sí" if game.opt_sound else "No"]
+	return ["", ""]
+
+
+func _cycle_option(i: int) -> void:
+	match i:
+		0:
+			var lens := [120.0, 180.0, 300.0]
+			game.half_len = lens[(lens.find(game.half_len) + 1) % 3]
+		1:
+			game.opt_difficulty = (game.opt_difficulty + 1) % 3
+		2:
+			var tods := ["random", "day", "sunset", "night"]
+			game.opt_tod = tods[(tods.find(game.opt_tod) + 1) % 4]
+		3:
+			var wths := ["random", "clear", "rain"]
+			game.opt_weather = wths[(wths.find(game.opt_weather) + 1) % 3]
+		4:
+			game.opt_sound = not game.opt_sound
+	game.save_options()
+	_refresh_options()
+
+
+func _refresh_options() -> void:
+	for i in opt_btns.size():
+		var info := _opt_info(i)
+		opt_btns[i].text = "%-22s  < %s >" % [info[0], info[1]]
 
 
 func _on_team_hover(i: int) -> void:

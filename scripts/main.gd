@@ -6,7 +6,7 @@ const FIELD_HALF_W := 35.0        # semiancho (touchlines en |x| = 35)
 const TRY_Z := 50.0               # líneas de try en |z| = 50
 const DEAD_Z := 60.0              # línea de pelota muerta
 const TEAM_SIZE := 15
-const HALF_LEN := 180.0           # segundos por tiempo
+var half_len := 180.0             # segundos por tiempo (opción del menú)
 const TACKLE_RANGE := 1.35
 const PICKUP_RANGE := 1.4
 
@@ -67,6 +67,12 @@ var conv_done_flag := false
 var conv_kicker: RugbyPlayer = null
 var confetti: GPUParticles3D = null
 var celebrate_all_team := -1   # todo el equipo festeja (campeón del torneo)
+
+# opciones del menú (persisten en user://settings.cfg)
+var opt_difficulty := 1        # 0 fácil · 1 normal · 2 difícil
+var opt_tod := "random"        # random · day · sunset · night
+var opt_weather := "random"    # random · clear · rain
+var opt_sound := true
 var conv_pts := 2                     # 2 conversión · 3 penal a los palos
 
 # drop goal en juego abierto
@@ -133,6 +139,7 @@ func _ready() -> void:
 	sfx_cheer = _mk_audio("res://assets/cheer.wav", -4.0)
 	ui.set_info("WASD mover · Shift sprint · Espacio pasar · K patada · Esc pausa")
 	ui.visible = false
+	_load_options()
 	menu.start()
 	# flag de desarrollo: --auto salta el menú y arranca un partido
 	if "--auto" in OS.get_cmdline_user_args() or "--auto" in OS.get_cmdline_args():
@@ -175,6 +182,32 @@ func _add_key_action(action: String, keys: Array) -> void:
 		InputMap.action_add_event(action, ev)
 
 
+func save_options() -> void:
+	var cfg := ConfigFile.new()
+	cfg.set_value("game", "difficulty", opt_difficulty)
+	cfg.set_value("game", "tod", opt_tod)
+	cfg.set_value("game", "weather", opt_weather)
+	cfg.set_value("game", "sound", opt_sound)
+	cfg.set_value("game", "half_len", half_len)
+	cfg.save("user://settings.cfg")
+	_apply_options()
+
+
+func _load_options() -> void:
+	var cfg := ConfigFile.new()
+	if cfg.load("user://settings.cfg") == OK:
+		opt_difficulty = cfg.get_value("game", "difficulty", 1)
+		opt_tod = cfg.get_value("game", "tod", "random")
+		opt_weather = cfg.get_value("game", "weather", "random")
+		opt_sound = cfg.get_value("game", "sound", true)
+		half_len = cfg.get_value("game", "half_len", 180.0)
+	_apply_options()
+
+
+func _apply_options() -> void:
+	AudioServer.set_bus_mute(0, not opt_sound)
+
+
 func _mk_audio(path: String, db: float) -> AudioStreamPlayer:
 	var a := AudioStreamPlayer.new()
 	a.volume_db = db
@@ -214,7 +247,8 @@ func _spawn_players() -> void:
 			p.game = self
 			p.team = team
 			p.index = i
-			p.rating = club["rating"]
+			p.rating = club["rating"] * \
+				([0.9, 1.0, 1.12][opt_difficulty] if team == 1 else 1.0)
 			# stats por posición: forwards fuertes/lentos, backs rápidos
 			match i:
 				0, 1, 2:   p.speed_mult = 0.84; p.break_prob = 0.30   # front row
@@ -264,10 +298,15 @@ func start_match(home: int, away: int, m := "friendly") -> void:
 	maul_team = -1
 	ui.hide_stats()
 	replay_buf.clear()
-	weather = "rain" if rng.randf() < 0.3 else "clear"
-	var tod_roll := rng.randf()
-	var tod := "day" if tod_roll < 0.4 else \
-		("sunset" if tod_roll < 0.75 else "night")
+	if opt_weather == "random":
+		weather = "rain" if rng.randf() < 0.3 else "clear"
+	else:
+		weather = opt_weather
+	var tod := opt_tod
+	if tod == "random":
+		var tod_roll := rng.randf()
+		tod = "day" if tod_roll < 0.4 else \
+			("sunset" if tod_roll < 0.75 else "night")
 	if field != null:
 		field.set_daytime(tod)
 		field.set_weather(weather == "rain")
@@ -507,7 +546,7 @@ func _process(delta: float) -> void:
 
 
 func _check_clock() -> void:
-	if clock < HALF_LEN or mode == "practice":
+	if clock < half_len or mode == "practice":
 		return
 	if half == 1:
 		half = 2
