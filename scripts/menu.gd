@@ -4,7 +4,7 @@ class_name RugbyMenu
 # Menú principal estilo Rugby 25 / EA Sports: panel de navegación lateral
 # izquierdo con ítems grandes, zona "hero" a la derecha (muro de camisetas /
 # vista previa del club) y barra inferior de hints de teclado.
-enum Step { HIDDEN, TITLE, HOME, AWAY, CONTROLS, OPTIONS }
+enum Step { HIDDEN, TITLE, HOME, AWAY, CONTROLS, OPTIONS, TABLE }
 
 var game: RugbyGame
 var step := Step.HIDDEN
@@ -25,6 +25,7 @@ var nav_box: VBoxContainer
 var nav_btns: Array[Button] = []
 var content_box: VBoxContainer
 var controls_lbl: RichTextLabel
+var table_lbl: RichTextLabel
 var opt_box: VBoxContainer
 var opt_btns: Array[Button] = []
 var opt_hdrs := {}          # Label -> clave de idioma
@@ -57,6 +58,12 @@ const EN := {
 	"CAMPEÓN 2026": "2026 CHAMPION",
 	"PARTIDO": "MATCH", "GRÁFICOS": "GRAPHICS", "AUDIO": "AUDIO",
 	"ACCESIBILIDAD": "ACCESSIBILITY", "IDIOMA": "LANGUAGE",
+	"TABLA URT": "URT TABLE",
+	"Todavía no jugaste el torneo.\nElegí TORNEO URT para empezar.":
+		"You haven't played the tournament yet.\nChoose URT TOURNAMENT to start.",
+	"Próxima fecha": "Next fixture",
+	"FECHA": "ROUND",
+	"TABLA URT —": "URT TABLE —",
 	"Duración del tiempo": "Match half length",
 	"Dificultad IA": "AI difficulty",
 	"Horario": "Time of day", "Clima": "Weather",
@@ -298,6 +305,7 @@ func _ready() -> void:
 		["AMISTOSO", func(): _on_mode_pressed("friendly")],
 		["TORNEO URT", func(): _on_mode_pressed("tournament")],
 		["PRÁCTICA LIBRE", func(): _on_mode_pressed("practice")],
+		["TABLA URT", _on_table_pressed],
 		["OPCIONES", _on_options_pressed],
 		["CONTROLES", _on_controls_pressed],
 	]
@@ -373,6 +381,18 @@ func _ready() -> void:
 			ob.pressed.connect(_cycle_option.bind(spec))
 			opt_box.add_child(ob)
 			opt_btns.append(ob)
+
+	# tabla del torneo (monoespaciada con [code])
+	table_lbl = RichTextLabel.new()
+	table_lbl.bbcode_enabled = true
+	table_lbl.fit_content = true
+	table_lbl.scroll_active = false
+	table_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	table_lbl.add_theme_font_size_override("mono_font_size", 18)
+	table_lbl.add_theme_font_size_override("normal_font_size", 20)
+	table_lbl.add_theme_color_override("default_color", Color(0.92, 0.95, 0.9))
+	table_lbl.visible = false
+	content_box.add_child(table_lbl)
 
 	# controles con BBCode (teclas en dorado)
 	controls_lbl = RichTextLabel.new()
@@ -528,6 +548,7 @@ func _update_view() -> void:
 	grid.visible = step == Step.HOME or step == Step.AWAY
 	opt_box.visible = step == Step.OPTIONS
 	controls_lbl.visible = step == Step.CONTROLS
+	table_lbl.visible = step == Step.TABLE
 	hero_box.visible = is_title
 	preview_box.visible = step == Step.HOME or step == Step.AWAY
 	result_lbl.visible = is_title and result_lbl.text != ""
@@ -544,7 +565,7 @@ func _update_view() -> void:
 			for i in nav_btns.size():
 				nav_btns[i].text = T([
 					"AMISTOSO", "TORNEO URT", "PRÁCTICA LIBRE",
-					"OPCIONES", "CONTROLES"][i])
+					"TABLA URT", "OPCIONES", "CONTROLES"][i])
 			nav_btns[nav_idx].grab_focus()
 		Step.HOME:
 			prompt_lbl.text = T("ELEGÍ TU EQUIPO") + \
@@ -565,6 +586,10 @@ func _update_view() -> void:
 			hint_lbl.text = T("Esc volver")
 			var txt: String = CONTROLS_EN if game.opt_lang == "en" else CONTROLS_ES
 			controls_lbl.text = _bb_controls(txt)
+		Step.TABLE:
+			prompt_lbl.text = T("TABLA URT")
+			hint_lbl.text = T("Esc volver")
+			_fill_table()
 		Step.OPTIONS:
 			prompt_lbl.text = T("OPCIONES")
 			hint_lbl.text = T("↑↓ elegir opción · Enter cambiar · Esc guardar")
@@ -670,7 +695,7 @@ func _update_preview() -> void:
 
 func _back() -> void:
 	match step:
-		Step.HOME, Step.CONTROLS, Step.OPTIONS:
+		Step.HOME, Step.CONTROLS, Step.OPTIONS, Step.TABLE:
 			step = Step.TITLE
 		Step.AWAY:
 			step = Step.HOME
@@ -698,6 +723,24 @@ func _on_controls_pressed() -> void:
 func _on_options_pressed() -> void:
 	step = Step.OPTIONS
 	_update_view()
+
+
+func _on_table_pressed() -> void:
+	step = Step.TABLE
+	_update_view()
+
+
+func _fill_table() -> void:
+	if game.tour_table.is_empty():
+		table_lbl.text = "[color=#f5c542]" + 			T("Todavía no jugaste el torneo.\nElegí TORNEO URT para empezar.") + 			"[/color]"
+		return
+	var t := game._table_text().replace("TABLA URT — FECHA",
+		T("TABLA URT —") + " " + T("FECHA"))
+	if game.tour_pos < game.tour_fixture.size():
+		t += "\n[color=#f5c542]" + T("Próxima fecha") + ": " + 			RugbyTeams.CLUBS[game.home_idx]["name"] + " vs " + 			RugbyTeams.CLUBS[game.tour_fixture[game.tour_pos]]["name"] + 			"[/color]"
+	else:
+		t += "\n[color=#f5c542]Torneo terminado[/color]"
+	table_lbl.text = "[code]" + t + "[/code]"
 
 
 func _opt_info(i: int) -> Array:
