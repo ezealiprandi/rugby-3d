@@ -9,6 +9,7 @@ const AI_JOG := 6.4
 var game: RugbyGame
 var team := 0
 var index := 0
+var pname := ""                   # apellido del plantel URT
 var rating := 1.0
 var tackled := 0.0
 var cool_pass := 0.0

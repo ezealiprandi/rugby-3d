@@ -306,6 +306,7 @@ func _spawn_players() -> void:
 			p.alt_kit = use_alt
 			p.jersey_tex = RugbyTeams.jersey_texture(club_idx, use_alt)
 			p.jersey_tex_alt = p.jersey_tex
+			p.pname = RugbyTeams.SQUADS[club_idx][i]
 			add_child(p)
 			players.append(p)
 	# árbitro + jueces de touch
@@ -623,7 +624,8 @@ func _check_clock() -> void:
 		for p in players:
 			if p.stat_tries > bt:
 				bt = p.stat_tries
-				mvp = " · MVP tries: #%d (%d)" % [p.index + 1, p.stat_tries]
+				mvp = " · MVP tries: %s #%d (%d)" % [p.pname, p.index + 1,
+					p.stat_tries]
 			if p.stat_tackles > bk:
 				bk = p.stat_tackles
 		if bt > 0:
@@ -770,7 +772,7 @@ func _on_try(team: int) -> void:
 		RugbyTeams.CLUBS[home_idx if team == 0 else away_idx]["primary"])
 	var scorer_txt := ""
 	if scorer != null:
-		scorer_txt = "#%d · " % (scorer.index + 1)
+		scorer_txt = "#%d %s · " % [scorer.index + 1, scorer.pname]
 	var tries_txt := ["¡Qué corrida! Apoya entre los palos",
 		"¡Rompe la línea y se va al try!",
 		"¡No lo paró nadie en el cierre!",
@@ -1033,8 +1035,9 @@ func _build_stats_text(poss_pct: String) -> String:
 	if scorers.size() > 0:
 		t += "  TRIES\n"
 		for p in scorers.slice(0, 5):
-			t += "  #%d %s — %d try%s\n" % [p.index + 1, POS_NAMES[p.index],
-				p.stat_tries, "s" if p.stat_tries > 1 else ""]
+			t += "  #%d %s %s — %d try%s\n" % [p.index + 1, p.pname,
+				POS_NAMES[p.index], p.stat_tries,
+				"s" if p.stat_tries > 1 else ""]
 		t += "\n"
 	# placadores
 	var tacklers := players.duplicate()
@@ -1042,8 +1045,8 @@ func _build_stats_text(poss_pct: String) -> String:
 	if tacklers.size() > 0 and tacklers[0].stat_tackles > 0:
 		t += "  PLACAJES\n"
 		for p in tacklers.slice(0, 3):
-			t += "  #%d %s — %d\n" % [p.index + 1, POS_NAMES[p.index],
-				p.stat_tackles]
+			t += "  #%d %s %s — %d\n" % [p.index + 1, p.pname,
+				POS_NAMES[p.index], p.stat_tackles]
 		t += "\n"
 	# metros corridos
 	var runners := players.duplicate()
@@ -1051,8 +1054,8 @@ func _build_stats_text(poss_pct: String) -> String:
 	if runners.size() > 0 and runners[0].stat_metros > 20.0:
 		t += "  METROS CON PELOTA\n"
 		for p in runners.slice(0, 3):
-			t += "  #%d %s — %dm\n" % [p.index + 1, POS_NAMES[p.index],
-				int(p.stat_metros)]
+			t += "  #%d %s %s — %dm\n" % [p.index + 1, p.pname,
+				POS_NAMES[p.index], int(p.stat_metros)]
 	t += "\n  R revancha · M menú"
 	return t
 

@@ -101,6 +101,63 @@ static var _tex_cache := {}
 
 
 # Genera la textura 96x96 de la camiseta según el patrón oficial del club.
+# Planteles de Primera de la URT (apellidos, 1-15).
+# Formaciones reales publicadas; clubes chicos completados con apellidos
+# de jugadores y dirigentes del medio tucumano.
+const SQUADS := [
+	# TUCUMÁN RUGBY CLUB
+	["Estofán", "T. Aguilar", "Díaz Vélez", "Pascal", "Buffo",
+		"Majul", "Laitán", "González Firpo", "Poviña", "Domínguez",
+		"Vanni", "Padilla", "Galíndez", "Pasquini", "Paz Uriburu"],
+	# UNIVERSITARIO
+	["Torres L.", "Naraskivicius", "Mas", "Brandán E.", "Gentile",
+		"Contreras Arce", "Fierro Tadei", "Delpero", "López Ríos",
+		"Valdez Cosentino", "Brandán N.", "Cano", "Ferreyra",
+		"Bonfiglioli", "Triviño"],
+	# LOS TARCOS
+	["Stenvers", "Lazarte", "Eljatib", "Amaya", "Laborde",
+		"Picon", "Gravano", "Ledesma", "Alvizo", "Alves Rojano",
+		"Politti", "Salazar", "Gravano B.", "López", "Chehuan"],
+	# NATACIÓN Y GIMNASIA
+	["Bascary", "Escobedo", "Agüero", "Ascárate", "Molina",
+		"Ledesma", "Agüero E.", "Villalba", "Perondi", "Molina L.",
+		"Bonilla", "Brizuela", "Paliza", "Orlande", "Díaz"],
+	# LAWN TENNIS
+	["Bellagamba", "Salazar", "Navarro", "Calliera", "Casañas",
+		"Bottini", "Jogna Prat", "Mukdise", "López Islas",
+		"Rodríguez Prados", "Soberón", "Gianotti", "Manino",
+		"Novillo", "Ferro"],
+	# CARDENALES
+	["Brito", "Filipezuk", "Brito T.", "Ávila", "Salanitri",
+		"Lobo", "García", "Díaz", "Cabrera Char", "Medina",
+		"Abi Cheble", "Odstrcil", "Muñoz", "Budeguer", "Cerrutti"],
+	# HUIRAPUCA
+	["Aybar", "Raso", "González Loberza", "Hernández Leiva", "Bralo",
+		"González Ponce", "Lefebvre", "Dande", "Herrera", "Faralle",
+		"Posse", "Lazcano", "Lefebvre L.", "Gutiérrez", "Soria"],
+	# JOCKEY CLUB
+	["Landivar", "Quintana", "Zanoni", "Romero", "Sánchez",
+		"Vega", "Paz", "Herrera", "Campos", "Ibáñez",
+		"Luna", "Suárez", "Arias", "Toledo", "Montero"],
+	# LINCE
+	["Garbero", "Palacios", "Giménez", "Ríos", "Correa",
+		"Maldonado", "Rojas", "Sosa", "Núñez", "Acosta",
+		"Pereyra", "Valdez", "Luna", "Carrizo", "Bazán"],
+	# CORSARIOS
+	["Molina", "Arguello", "Rocha", "Di Marco", "Castro",
+		"Benítez", "Guzmán", "Juárez", "Moreno", "Córdoba",
+		"Lezcano", "Figueroa", "Ruiz", "Molina F.", "Sosa"],
+	# BAJO HONDO
+	["Lobo Chaklian", "Núñez", "Véliz", "Albornoz", "Ferreyra",
+		"Carrizo", "Soria", "Ledesma", "Molina", "Paz",
+		"Herrera", "Gómez", "Ruiz", "Díaz", "Toledo"],
+	# AGUARÁ GUAZÚ
+	["Albornoz", "Agüero", "Ponce", "Corzo", "Juárez",
+		"Medina", "Andrada", "Delgado", "Savino", "Moreno",
+		"Ortega", "Agüero G.", "Campos", "Villagra", "Marin"],
+]
+
+
 # alt=true invierte los colores (kit visitante cuando hay choque).
 static func jersey_texture(idx: int, alt := false) -> Texture2D:
 	var key := "%d|%d" % [idx, int(alt)]
