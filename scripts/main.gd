@@ -394,6 +394,7 @@ func start_match(home: int, away: int, m := "friendly") -> void:
 	ui.show_vs(home_idx, away_idx)
 	ui.tv_show(true)
 	ui.presenter_show(home_idx, away_idx)
+	ui.lineup_show(home_idx, away_idx)
 	ui.flash_hint("WASD moverse · Q/E pase · F placaje · K/C/V/Z patadas · Shift sprint", 5.0)
 	ui.set_teams(home_idx, away_idx)
 	if field != null:

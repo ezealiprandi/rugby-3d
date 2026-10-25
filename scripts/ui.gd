@@ -47,6 +47,11 @@ var scorer_panel: PanelContainer
 var scorer_lbl: Label
 var scorer_bar: ColorRect
 var scorer_t := 0.0
+var lineup_panel: CenterContainer
+var lineup_home: Label
+var lineup_away: Label
+var lineup_htitle: Label
+var lineup_atitle: Label
 
 
 func _mk_label(size: int) -> Label:
@@ -607,6 +612,57 @@ func _build_broadcast() -> void:
 		r.visible = false
 		add_child(r)
 
+	# alineaciones XV titular de ambos clubes
+	lineup_panel = CenterContainer.new()
+	lineup_panel.set_anchors_preset(Control.PRESET_FULL_RECT)
+	var lbg := PanelContainer.new()
+	var lsb := StyleBoxFlat.new()
+	lsb.bg_color = Color(0.01, 0.03, 0.02, 0.9)
+	lsb.border_color = Color(1.0, 0.75, 0.15, 0.8)
+	lsb.border_width_top = 3
+	lsb.border_width_bottom = 3
+	lsb.content_margin_left = 44
+	lsb.content_margin_right = 44
+	lsb.content_margin_top = 18
+	lsb.content_margin_bottom = 18
+	lbg.add_theme_stylebox_override("panel", lsb)
+	lineup_panel.add_child(lbg)
+	var lvb := VBoxContainer.new()
+	lvb.add_theme_constant_override("separation", 8)
+	lbg.add_child(lvb)
+	var lt := Label.new()
+	lt.text = "FORMACIONES"
+	lt.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	lt.add_theme_font_size_override("font_size", 26)
+	lt.add_theme_color_override("font_color", Color(1.0, 0.75, 0.15))
+	lvb.add_child(lt)
+	var lrow := HBoxContainer.new()
+	lrow.add_theme_constant_override("separation", 60)
+	lvb.add_child(lrow)
+	var mk_col := func() -> VBoxContainer:
+		var vc := VBoxContainer.new()
+		vc.add_theme_constant_override("separation", 1)
+		lrow.add_child(vc)
+		return vc
+	var hc: VBoxContainer = mk_col.call()
+	var ac: VBoxContainer = mk_col.call()
+	lineup_htitle = Label.new()
+	lineup_atitle = Label.new()
+	for t in [lineup_htitle, lineup_atitle]:
+		t.add_theme_font_size_override("font_size", 18)
+		t.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	hc.add_child(lineup_htitle)
+	ac.add_child(lineup_atitle)
+	lineup_home = Label.new()
+	lineup_away = Label.new()
+	for l in [lineup_home, lineup_away]:
+		l.add_theme_font_size_override("font_size", 15)
+		l.add_theme_color_override("font_color", Color(0.92, 0.94, 0.88))
+	hc.add_child(lineup_home)
+	ac.add_child(lineup_away)
+	lineup_panel.visible = false
+	add_child(lineup_panel)
+
 	# tarjeta del goleador (lower-third)
 	scorer_panel = PanelContainer.new()
 	var ssb := StyleBoxFlat.new()
@@ -652,6 +708,26 @@ func presenter_show(h_i: int, a_i: int) -> void:
 
 func presenter_hide() -> void:
 	pres_panel.visible = false
+	lineup_panel.visible = false
+
+
+func lineup_show(h_i: int, a_i: int) -> void:
+	var mk := func(ci: int) -> String:
+		var c: Dictionary = RugbyTeams.CLUBS[ci]
+		var s := ""
+		for i in 15:
+			s += "%2d · %s
+" % [i + 1, RugbyTeams.SQUADS[ci][i]]
+		return s
+	lineup_htitle.text = RugbyTeams.CLUBS[h_i]["name"]
+	lineup_htitle.add_theme_color_override("font_color",
+		RugbyTeams.CLUBS[h_i]["primary"].lightened(0.45))
+	lineup_atitle.text = RugbyTeams.CLUBS[a_i]["name"]
+	lineup_atitle.add_theme_color_override("font_color",
+		RugbyTeams.CLUBS[a_i]["primary"].lightened(0.45))
+	lineup_home.text = mk.call(h_i)
+	lineup_away.text = mk.call(a_i)
+	lineup_panel.visible = true
 
 
 func replay_overlay(on: bool) -> void:
