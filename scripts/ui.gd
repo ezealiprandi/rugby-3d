@@ -8,6 +8,10 @@ var hint_lbl: Label
 var info_lbl: Label
 var pause_lbl: Label
 var pause_menu: Control
+var vs_panel: CenterContainer
+var vs_a: TextureRect
+var vs_b: TextureRect
+var vs_names: Label
 var pause_btns: Array[Button] = []
 var game: RugbyGame
 var msg_t := 0.0
@@ -75,6 +79,7 @@ func _ready() -> void:
 	_build_conversion_ui()
 	_build_stats_panel()
 	_build_pause_menu()
+	_build_vs_panel()
 
 
 func _build_stats_panel() -> void:
@@ -313,6 +318,70 @@ func _build_pause_menu() -> void:
 func _unpause() -> void:
 	get_tree().paused = false
 	set_paused(false)
+
+
+# ─── tarjeta VS pre-partido (estilo FIFA) ─────────────────────────────────
+func _build_vs_panel() -> void:
+	vs_panel = CenterContainer.new()
+	vs_panel.set_anchors_preset(Control.PRESET_FULL_RECT)
+	vs_panel.visible = false
+	add_child(vs_panel)
+	var bg := PanelContainer.new()
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.01, 0.03, 0.02, 0.88)
+	sb.border_color = Color(1.0, 0.75, 0.15, 0.8)
+	sb.border_width_top = 3
+	sb.border_width_bottom = 3
+	sb.content_margin_left = 60
+	sb.content_margin_right = 60
+	sb.content_margin_top = 24
+	sb.content_margin_bottom = 24
+	bg.add_theme_stylebox_override("panel", sb)
+	vs_panel.add_child(bg)
+	var vb := VBoxContainer.new()
+	vb.alignment = BoxContainer.ALIGNMENT_CENTER
+	vb.add_theme_constant_override("separation", 8)
+	bg.add_child(vb)
+	var hb := HBoxContainer.new()
+	hb.alignment = BoxContainer.ALIGNMENT_CENTER
+	hb.add_theme_constant_override("separation", 36)
+	vb.add_child(hb)
+	vs_a = TextureRect.new()
+	vs_a.custom_minimum_size = Vector2(110, 140)
+	vs_a.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	vs_a.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	hb.add_child(vs_a)
+	var vl := Label.new()
+	vl.text = "VS"
+	vl.add_theme_font_size_override("font_size", 56)
+	vl.add_theme_color_override("font_color", Color(1.0, 0.75, 0.15))
+	vl.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
+	vl.add_theme_constant_override("outline_size", 8)
+	hb.add_child(vl)
+	vs_b = TextureRect.new()
+	vs_b.custom_minimum_size = Vector2(110, 140)
+	vs_b.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	vs_b.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	hb.add_child(vs_b)
+	vs_names = Label.new()
+	vs_names.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vs_names.add_theme_font_size_override("font_size", 26)
+	vs_names.add_theme_color_override("font_color", Color(0.95, 0.95, 0.9))
+	vb.add_child(vs_names)
+
+
+func show_vs(home_i: int, away_i: int) -> void:
+	vs_a.texture = RugbyTeams.jersey_texture(home_i)
+	vs_b.texture = RugbyTeams.jersey_texture(away_i)
+	vs_names.text = "%s  —  %s" % [RugbyTeams.CLUBS[home_i]["name"],
+		RugbyTeams.CLUBS[away_i]["name"]]
+	vs_panel.visible = true
+	vs_panel.modulate.a = 0.0
+	var tw := create_tween()
+	tw.tween_property(vs_panel, "modulate:a", 1.0, 0.3)
+	tw.tween_interval(1.8)
+	tw.tween_property(vs_panel, "modulate:a", 0.0, 0.4)
+	tw.tween_callback(func(): vs_panel.visible = false)
 
 
 # ─── UI de conversión ───────────────────────────────────────────────────────

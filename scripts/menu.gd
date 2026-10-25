@@ -36,6 +36,8 @@ var preview_box: VBoxContainer
 var preview_tex: TextureRect
 var preview_lbl: Label
 var right_vb: VBoxContainer
+var nav_desc: Label
+var pulse_t := 0.0
 var sfx_tick: AudioStreamPlayer
 var sfx_confirm: AudioStreamPlayer
 
@@ -82,6 +84,12 @@ const EN := {
 	"Esc volver": "Esc back",
 	"Fácil": "Easy", "Normal": "Normal", "Difícil": "Hard",
 	"min": "min",
+	"Partido rápido entre dos clubes de la URT": "Quick match between two URT clubs",
+	"Campeonato de 11 fechas con tabla real y campeón": "11-round championship with real table and champion",
+	"Entrenamiento libre, sin reloj ni presión": "Free training, no clock, no pressure",
+	"Posiciones del torneo en curso": "Standings of the ongoing tournament",
+	"Juego, gráficos, audio, controles y más": "Game, graphics, audio, controls and more",
+	"Todas las teclas y reglas extra": "Every key and extra rule",
 }
 
 
@@ -309,11 +317,21 @@ func _ready() -> void:
 		["OPCIONES", _on_options_pressed],
 		["CONTROLES", _on_controls_pressed],
 	]
-	for it in nav_items:
-		var nb := _nav_button(T(it[0]))
-		nb.pressed.connect(it[1])
+	for i in nav_items.size():
+		var nb := _nav_button(T(nav_items[i][0]))
+		nb.pressed.connect(nav_items[i][1])
+		var ii := i
+		nb.focus_entered.connect(func(): _set_nav_desc(ii))
 		nav_box.add_child(nb)
 		nav_btns.append(nb)
+
+	nav_desc = _lbl(16)
+	nav_desc.add_theme_color_override("font_color", Color(0.75, 0.8, 0.72))
+	nav_desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	nav_desc.custom_minimum_size = Vector2(400, 44)
+	content_box.add_child(nav_desc)
+
+	nav_box.get_parent().move_child(nav_desc, nav_box.get_index() + 1)
 
 	# grilla de clubes (HOME/AWAY)
 	grid = GridContainer.new()
@@ -542,9 +560,25 @@ func hide_menu() -> void:
 	visible = false
 
 
+func _set_nav_desc(i: int) -> void:
+	nav_idx = i
+	if nav_desc == null:
+		return
+	var keys := [
+		"Partido rápido entre dos clubes de la URT",
+		"Campeonato de 11 fechas con tabla real y campeón",
+		"Entrenamiento libre, sin reloj ni presión",
+		"Posiciones del torneo en curso",
+		"Juego, gráficos, audio, controles y más",
+		"Todas las teclas y reglas extra",
+	]
+	nav_desc.text = T(keys[i])
+
+
 func _update_view() -> void:
 	var is_title := step == Step.TITLE
 	nav_box.visible = is_title
+	nav_desc.visible = is_title
 	grid.visible = step == Step.HOME or step == Step.AWAY
 	opt_box.visible = step == Step.OPTIONS
 	controls_lbl.visible = step == Step.CONTROLS
@@ -567,6 +601,7 @@ func _update_view() -> void:
 					"AMISTOSO", "TORNEO URT", "PRÁCTICA LIBRE",
 					"TABLA URT", "OPCIONES", "CONTROLES"][i])
 			nav_btns[nav_idx].grab_focus()
+			_set_nav_desc(nav_idx)
 		Step.HOME:
 			prompt_lbl.text = T("ELEGÍ TU EQUIPO") + \
 				(T(" — TORNEO URT") if mode == "tournament" else "")
@@ -630,7 +665,11 @@ func _fill_rows(exclude: int) -> void:
 		b.modulate = Color(1, 1, 1, 0.35) if i == exclude else Color(1, 1, 1)
 
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
+	pulse_t += delta
+	# pulso sutil del logo dorado
+	var glow := 0.88 + 0.12 * sin(pulse_t * 2.4)
+	title_lbl.modulate = Color(1.0, 1.0, 1.0, glow)
 	if step == Step.HIDDEN:
 		return
 	if Input.is_action_just_pressed("pause"):

@@ -319,6 +319,7 @@ func start_match(home: int, away: int, m := "friendly") -> void:
 	mode = m
 	home_idx = home
 	ui.visible = true
+	ui.show_vs(home_idx, away_idx)
 	score = [0, 0]
 	half = 1
 	clock = 0.0
