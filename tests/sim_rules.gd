@@ -72,6 +72,7 @@ func _process(_delta: float) -> bool:
 		6:
 			if game.phase == RugbyGame.Phase.PLAY:
 				print("> knock-on ok")
+				game.adv_t = -1.0                     # cancela la ventaja (test)
 				var c: RugbyPlayer = game.players[5]    # team0 ataca +Z
 				game.ball.set_carrier(c)
 				c.global_position = Vector3(5, 0, 52)   # en el in-goal rival

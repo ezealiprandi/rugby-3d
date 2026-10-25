@@ -84,6 +84,13 @@ var maul_dir := 1.0
 var pending_maul_team := -1   # se arma cuando el catcher agarra el lineout
 var jackal_pressed := false  # el jugador apretó F para competir en el ruck
 
+# ventaja del árbitro
+var adv_t := -1.0
+var adv_team := -1
+var adv_spot := Vector3.ZERO
+var adv_hold := 0.0
+var total_pens := [0, 0]       # penales acumulados por equipo (amarilla/roja)  # el jugador apretó F para competir en el ruck
+
 # clima y estadísticas
 var weather := "clear"
 var poss_t := [0.0, 0.0]
@@ -233,6 +240,10 @@ func start_match(home: int, away: int, m := "friendly") -> void:
 	clock = 0.0
 	attack_dir = [1, -1]
 	pen_count = [0, 0]
+	total_pens = [0, 0]
+	adv_t = -1.0
+	adv_team = -1
+	adv_hold = 0.0
 	drop_goal_team = -1
 	celebrating = null
 	poss_t = [0.0, 0.0]
@@ -380,6 +391,21 @@ func _process(delta: float) -> void:
 				else ball.last_touch_team
 			if poss_team >= 0:
 				poss_t[poss_team] += delta
+			if adv_t > 0.0:
+				adv_t -= delta
+				var ac := ball.carrier
+				if ac != null and ac.team == adv_team:
+					adv_hold += delta
+					if adv_hold > 1.2:
+						adv_t = -1.0        # ventaja aprovechada
+				elif ac != null and ac.team != adv_team:
+					adv_t = -1.0
+					_event_scrum(adv_team, adv_spot,
+						"Scrum para %s — se acabó la ventaja" % _club_name(adv_team))
+				elif adv_t <= 0.0:
+					adv_t = -1.0
+					_event_scrum(adv_team, adv_spot,
+						"¡Scrum para %s! (ventaja no aprovechada)" % _club_name(adv_team))
 			if pending_maul_team >= 0 and ball.carrier != null:
 				if ball.carrier.team == pending_maul_team:
 					_start_maul(pending_maul_team)
@@ -550,6 +576,7 @@ func _replay_step() -> void:
 
 
 func _on_try(team: int) -> void:
+	adv_t = -1.0
 	score[team] += 5
 	tries_n[team] += 1
 	last_scoring_team = team
@@ -765,6 +792,17 @@ func _resolve_breakdown() -> void:
 			"¡PENAL para %s! No soltó la pelota" % _club_name(1 - ruck_team))
 		jackal_pressed = false
 		return
+	# offside: defensor parado delante de la última línea
+	for p in players:
+		if p.team == ruck_team or p.tackled > 0.0 or p.sin_bin_t > 0.0:
+			continue
+		if (p.global_position.z - pending_spot.z) * float(ruck_dir) > 3.0:
+			if rng.randf() < 0.2:
+				_event_penalty(ruck_team, pending_spot,
+					"¡PENAL! Offside de %s" % _club_name(1 - ruck_team))
+				jackal_pressed = false
+				return
+			break
 	# jackal: un defensor sobre la pelota puede robarla
 	var jk := _nearest(1 - ruck_team, pending_spot, null, 3.2)
 	if jk != null:
@@ -824,13 +862,25 @@ func on_mark(catcher: RugbyPlayer) -> void:
 
 
 func on_forward_pass(thrower: RugbyPlayer) -> void:
-	_event_scrum(1 - thrower.team, thrower.global_position,
-		"¡Pase adelantado! Scrum para %s" % _club_name(1 - thrower.team))
+	_start_advantage(1 - thrower.team, thrower.global_position,
+		"¡Pase adelantado! VENTAJA para %s" % _club_name(1 - thrower.team))
 
 
 func on_knock_on(player: RugbyPlayer) -> void:
-	_event_scrum(1 - player.team, player.global_position,
-		"¡Knock-on! Scrum para %s" % _club_name(1 - player.team))
+	_start_advantage(1 - player.team, player.global_position,
+		"¡Knock-on! VENTAJA para %s" % _club_name(1 - player.team))
+
+
+# el árbitro juega la ventaja: si el otro equipo no aprovecha, hay scrum
+func _start_advantage(team: int, spot: Vector3, msg: String) -> void:
+	if phase != Phase.PLAY:
+		return
+	adv_team = team
+	adv_spot = spot
+	adv_t = 5.0
+	adv_hold = 0.0
+	ui.show_message(msg, 1.8)
+	_whistle()
 
 
 func _event_scrum(feed_team: int, spot: Vector3, msg: String) -> void:
@@ -956,16 +1006,21 @@ func _event_penalty(team: int, spot: Vector3, msg: String) -> void:
 	# acumulación de penales → tarjeta amarilla
 	var offender := 1 - team
 	pen_count[offender] += 1
+	total_pens[offender] += 1
 	if pen_count[offender] >= 2:
 		var card := _nearest(offender, spot, null, 999.0)
 		if card != null:
-			card.sin_bin_t = 45.0
+			var is_red: bool = total_pens[offender] >= 4
+			card.sin_bin_t = 9999.0 if is_red else 45.0
 			card.tackled = 0.0
 			card.global_position = Vector3(
 				signf(spot.x + 1.0) * (FIELD_HALF_W + 6.0), 0.0, spot.z)
-			pen_count[offender] = 0
-			ui.show_message("¡TARJETA AMARILLA! %s juega con 14" %
-				_club_name(offender), 3.0)
+			if not is_red:
+				pen_count[offender] = 0
+			ui.show_message("¡TARJETA ROJA! %s se queda con 14 todo el partido"
+				% _club_name(offender), 3.5) if is_red \
+				else ui.show_message("¡TARJETA AMARILLA! %s juega con 14"
+				% _club_name(offender), 3.0)
 	ball.release()
 	ball.freeze = true
 	ball.global_position = spot + Vector3(0, 1.0, 0)

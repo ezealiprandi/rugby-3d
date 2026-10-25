@@ -20,7 +20,8 @@ var dive_cd := 0.0                  # cooldown tras lanzarse
 var step_t := 0.0                  # burst del sidestep
 var step_dir := Vector3(0, 0, 1)
 var step_cd := 0.0
-var surge_t := 0.0                 # pick and go: carga automática hacia adelante
+var surge_t := 0.0
+var stamina := 1.0                 # energía: el sprint cansa                 # pick and go: carga automática hacia adelante
 var facing := Vector3(0, 0, 1)
 var hold_pos := Vector3.ZERO
 var col_primary := Color(0.2, 0.4, 0.9)
@@ -237,6 +238,13 @@ func _physics_process(delta: float) -> void:
 		return
 
 	var wish := _desired_velocity()
+	# fatiga: correr fuerte gasta, trotar recupera
+	var run := Vector2(wish.x, wish.z).length()
+	if run > 8.0:
+		stamina = clampf(stamina - delta * 0.07, 0.0, 1.0)
+	else:
+		stamina = clampf(stamina + delta * 0.05, 0.0, 1.0)
+	wish *= 0.7 + 0.3 * stamina
 	velocity.x = wish.x
 	velocity.z = wish.z
 	_apply_gravity_move(delta)
