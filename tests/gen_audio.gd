@@ -16,7 +16,36 @@ func _init() -> void:
 	_whistle()
 	_crowd()
 	_cheer()
+	_tick()
+	_confirm()
 	print("audio generado")
+
+
+func _tick() -> void:
+	# blip corto 0.06s para navegación de menú
+	var n := int(RATE * 0.06)
+	var data := PackedByteArray()
+	data.resize(n)
+	for i in n:
+		var t := float(i) / RATE
+		var env := exp(-t * 60.0)
+		var s := sin(TAU * 1400.0 * t) * env
+		data[i] = int(clampf(128.0 + s * 100.0, 0.0, 255.0))
+	_save_wav("res://assets/tick.wav", data)
+
+
+func _confirm() -> void:
+	# dos tonos ascendentes 0.18s para confirmar
+	var n := int(RATE * 0.18)
+	var data := PackedByteArray()
+	data.resize(n)
+	for i in n:
+		var t := float(i) / RATE
+		var f := 880.0 if t < 0.09 else 1320.0
+		var env := minf(1.0, t / 0.01) * exp(-t * 5.0)
+		var s := sin(TAU * f * t) * env
+		data[i] = int(clampf(128.0 + s * 95.0, 0.0, 255.0))
+	_save_wav("res://assets/confirm.wav", data)
 	quit()
 
 

@@ -7,6 +7,9 @@ var msg_lbl: Label
 var hint_lbl: Label
 var info_lbl: Label
 var pause_lbl: Label
+var pause_menu: Control
+var pause_btns: Array[Button] = []
+var game: RugbyGame
 var msg_t := 0.0
 var hint_t := 0.0
 
@@ -33,6 +36,7 @@ func _mk_label(size: int) -> Label:
 
 func _ready() -> void:
 	layer = 10
+	process_mode = Node.PROCESS_MODE_ALWAYS   # los botones funcionan en pausa
 
 	score_lbl = _mk_label(34)
 	score_lbl.set_anchors_preset(Control.PRESET_TOP_WIDE)
@@ -70,6 +74,7 @@ func _ready() -> void:
 
 	_build_conversion_ui()
 	_build_stats_panel()
+	_build_pause_menu()
 
 
 func _build_stats_panel() -> void:
@@ -187,6 +192,16 @@ func _build_conversion_ui() -> void:
 
 
 func _process(delta: float) -> void:
+	if pause_menu != null and pause_menu.visible:
+		var pd := 0
+		if Input.is_action_just_pressed("move_down"):
+			pd = 1
+		elif Input.is_action_just_pressed("move_up"):
+			pd = -1
+		if pd != 0:
+			var ci := pause_btns.find(get_viewport().gui_get_focus_owner())
+			ci = (ci + pd + pause_btns.size()) % pause_btns.size() if ci >= 0 else 0
+			pause_btns[ci].grab_focus()
 	if msg_t > 0.0:
 		msg_t -= delta
 		if msg_t <= 0.0:
@@ -222,7 +237,82 @@ func set_info(text: String) -> void:
 
 
 func set_paused(on: bool) -> void:
-	pause_lbl.visible = on
+	pause_menu.visible = on
+	if on and pause_btns.size() > 0:
+		pause_btns[0].grab_focus()
+
+
+func _pause_btn(text: String) -> Button:
+	var b := Button.new()
+	b.text = text
+	b.custom_minimum_size = Vector2(340, 50)
+	b.add_theme_font_size_override("font_size", 24)
+	var sb := func(bg: Color, border: Color) -> StyleBoxFlat:
+		var s := StyleBoxFlat.new()
+		s.bg_color = bg
+		s.border_color = border
+		s.border_width_left = 5
+		s.content_margin_left = 16
+		s.corner_radius_top_left = 4
+		s.corner_radius_top_right = 4
+		s.corner_radius_bottom_left = 4
+		s.corner_radius_bottom_right = 4
+		return s
+	b.add_theme_stylebox_override("normal", sb.call(Color(0.06, 0.09, 0.07, 0.95), Color(0.3, 0.4, 0.3)))
+	b.add_theme_stylebox_override("hover", sb.call(Color(0.14, 0.24, 0.16), Color(1.0, 0.75, 0.15)))
+	b.add_theme_stylebox_override("focus", sb.call(Color(0.14, 0.24, 0.16), Color(1.0, 0.75, 0.15)))
+	b.add_theme_color_override("font_color", Color(0.9, 0.92, 0.88))
+	b.add_theme_color_override("font_hover_color", Color(1.0, 0.85, 0.3))
+	b.add_theme_color_override("font_focus_color", Color(1.0, 0.85, 0.3))
+	b.mouse_entered.connect(func(): b.grab_focus())
+	return b
+
+
+func _build_pause_menu() -> void:
+	pause_menu = Control.new()
+	pause_menu.set_anchors_preset(Control.PRESET_FULL_RECT)
+	pause_menu.visible = false
+	add_child(pause_menu)
+	var dim := ColorRect.new()
+	dim.color = Color(0.0, 0.0, 0.0, 0.62)
+	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	pause_menu.add_child(dim)
+	var cc := CenterContainer.new()
+	cc.set_anchors_preset(Control.PRESET_FULL_RECT)
+	pause_menu.add_child(cc)
+	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 14)
+	cc.add_child(vb)
+	var t := Label.new()
+	t.text = "PAUSA"
+	t.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	t.add_theme_font_size_override("font_size", 52)
+	t.add_theme_color_override("font_color", Color(1.0, 0.75, 0.15))
+	t.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
+	t.add_theme_constant_override("outline_size", 8)
+	vb.add_child(t)
+	var spacer := Control.new()
+	spacer.custom_minimum_size = Vector2(0, 8)
+	vb.add_child(spacer)
+	var defs := [
+		["REANUDAR", func(): _unpause()],
+		["REINICIAR PARTIDO", func():
+			_unpause()
+			game.start_match(game.home_idx, game.away_idx, game.mode)],
+		["SALIR AL MENÚ", func():
+			_unpause()
+			game.return_to_menu()],
+	]
+	for d in defs:
+		var b := _pause_btn(d[0])
+		b.pressed.connect(d[1])
+		vb.add_child(b)
+		pause_btns.append(b)
+
+
+func _unpause() -> void:
+	get_tree().paused = false
+	set_paused(false)
 
 
 # ─── UI de conversión ───────────────────────────────────────────────────────

@@ -34,6 +34,9 @@ var hero_box: VBoxContainer
 var preview_box: VBoxContainer
 var preview_tex: TextureRect
 var preview_lbl: Label
+var right_vb: VBoxContainer
+var sfx_tick: AudioStreamPlayer
+var sfx_confirm: AudioStreamPlayer
 
 
 const EN := {
@@ -190,6 +193,17 @@ func _btn_style(bg_color: Color, border: Color) -> StyleBoxFlat:
 func _ready() -> void:
 	layer = 30
 	process_mode = Node.PROCESS_MODE_ALWAYS
+
+	sfx_tick = AudioStreamPlayer.new()
+	if FileAccess.file_exists("res://assets/tick.wav"):
+		sfx_tick.stream = load("res://assets/tick.wav")
+		sfx_tick.volume_db = -14.0
+	add_child(sfx_tick)
+	sfx_confirm = AudioStreamPlayer.new()
+	if FileAccess.file_exists("res://assets/confirm.wav"):
+		sfx_confirm.stream = load("res://assets/confirm.wav")
+		sfx_confirm.volume_db = -10.0
+	add_child(sfx_confirm)
 
 	# fondo degradado
 	var grad := Gradient.new()
@@ -391,7 +405,8 @@ func _ready() -> void:
 	right.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(right)
 
-	var rvb := VBoxContainer.new()
+	right_vb = VBoxContainer.new()
+	var rvb: VBoxContainer = right_vb
 	rvb.alignment = BoxContainer.ALIGNMENT_CENTER
 	rvb.add_theme_constant_override("separation", 18)
 	right.add_child(rvb)
@@ -473,6 +488,28 @@ func _ready() -> void:
 	hint_lbl.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	bar.add_child(hint_lbl)
 
+	_wire_sounds()
+
+
+# tick al enfocar, confirm al elegir
+func _wire_sounds() -> void:
+	for b in nav_btns + buttons + opt_btns:
+		b.focus_entered.connect(_play_tick)
+	for b in nav_btns + buttons:
+		b.pressed.connect(_play_confirm)
+	for b in opt_btns:
+		b.pressed.connect(_play_tick)
+
+
+func _play_tick() -> void:
+	if sfx_tick.stream != null:
+		sfx_tick.play()
+
+
+func _play_confirm() -> void:
+	if sfx_confirm.stream != null:
+		sfx_confirm.play()
+
 
 func start() -> void:
 	step = Step.TITLE
@@ -533,6 +570,14 @@ func _update_view() -> void:
 			hint_lbl.text = T("↑↓ elegir opción · Enter cambiar · Esc guardar")
 			_refresh_options()
 			opt_btns[0].grab_focus()
+
+	# transición suave entre pantallas
+	content_box.modulate.a = 0.0
+	right_vb.modulate.a = 0.0
+	var tw := create_tween()
+	tw.set_parallel(true)
+	tw.tween_property(content_box, "modulate:a", 1.0, 0.22)
+	tw.tween_property(right_vb, "modulate:a", 1.0, 0.22)
 
 
 # Colorea en dorado la tecla de cada línea de controles.

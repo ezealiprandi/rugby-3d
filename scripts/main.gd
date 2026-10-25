@@ -139,6 +139,7 @@ func _ready() -> void:
 	cam.game = self
 	add_child(cam)
 	ui = RugbyUI.new()
+	ui.game = self
 	add_child(ui)
 	menu = RugbyMenu.new()
 	menu.game = self
