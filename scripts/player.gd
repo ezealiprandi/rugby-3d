@@ -17,6 +17,9 @@ var cool_kick := 0.0
 var dive_t := 0.0                  # tiempo restante del lance de placaje
 var dive_dir := Vector3(0, 0, 1)
 var dive_cd := 0.0                  # cooldown tras lanzarse
+var step_t := 0.0                  # burst del sidestep
+var step_dir := Vector3(0, 0, 1)
+var step_cd := 0.0
 var facing := Vector3(0, 0, 1)
 var hold_pos := Vector3.ZERO
 var col_primary := Color(0.2, 0.4, 0.9)
@@ -192,6 +195,7 @@ func _physics_process(delta: float) -> void:
 	cool_fend = maxf(0.0, cool_fend - delta)
 	cool_kick = maxf(0.0, cool_kick - delta)
 	dive_cd = maxf(0.0, dive_cd - delta)
+	step_cd = maxf(0.0, step_cd - delta)
 	if tackled > 0.0:
 		tackled -= delta
 		velocity.x = 0.0
@@ -200,6 +204,15 @@ func _physics_process(delta: float) -> void:
 		_update_visual(delta, 0.0)
 		return
 
+	# sidestep: burst lateral rapido que dificulta placarte
+	if step_t > 0.0:
+		step_t -= delta
+		velocity.x = step_dir.x * 12.5
+		velocity.z = step_dir.z * 12.5
+		_apply_gravity_move(delta)
+		_update_visual(delta, 11.0)
+		_try_pickup()
+		return
 	# lance de placaje: el cuerpo se tira, alcance mayor, si erras caes
 	if dive_t > 0.0:
 		dive_t -= delta
@@ -263,6 +276,12 @@ func _desired_velocity() -> Vector3:
 				_do_kick()
 			if Input.is_action_just_pressed("dropgoal"):
 				_do_drop_goal()
+			if Input.is_action_just_pressed("grubber"):
+				_do_grubber()
+			if Input.is_action_just_pressed("bomb"):
+				_do_bomb()
+			if Input.is_action_just_pressed("step") and step_cd <= 0.0:
+				_start_step()
 			if Input.is_action_just_pressed("fend") and cool_fend <= 0.0:
 				_do_fend()
 		elif Input.is_action_just_pressed("tackle") and dive_cd <= 0.0:
@@ -410,6 +429,17 @@ func _carrier_ai() -> Vector3:
 			cool_pass = 1.1
 			return Vector3.ZERO
 
+	if nearest_d > 2.0 and nearest_d < 4.5 and step_cd <= 0.0 \
+			and game.rng.randf() < 0.06:
+		_start_step()
+	if cool_kick <= 0.0 and global_position.z * d > 14.0 \
+			and global_position.z * d < 32.0 and game.rng.randf() < 0.008:
+		_do_grubber()
+		return Vector3.ZERO
+	if cool_kick <= 0.0 and global_position.z * d > 26.0 \
+			and game.rng.randf() < 0.006:
+		_do_bomb()
+		return Vector3.ZERO
 	if nearest_d < 5.5:
 		var evade := side * (1.0 if side.dot(nearest_rel) < 0.0 else -1.0)
 		if (left < right) != (evade.dot(side) > 0.0):
@@ -494,6 +524,13 @@ func _try_pickup() -> void:
 	var dxz := Vector2(b.global_position.x - global_position.x,
 		b.global_position.z - global_position.z).length()
 	if dxz < r:
+		if b.pass_from != null and b.pass_from.team != team:
+			# intercepcion: el defensor puede atrapar el pase en el aire
+			var ic := 0.05 if self == game.controlled else 0.028
+			if game.rng.randf() < ic:
+				b.set_carrier(self)
+				game.ui.flash_hint("¡¡INTERCEPCIÓN de %s!!" % game._club_name(team))
+			return
 		if b.pass_from != null and b.pass_from.team == team and self != game.controlled:
 			var chance := 0.1 if b.pass_from != game.controlled else 0.04
 			if game.weather == "rain":
@@ -513,6 +550,8 @@ func _try_tackle() -> void:
 	var reach := RugbyGame.TACKLE_RANGE * (1.0 if game.controlled != self else 1.25)
 	if dive_t > 0.0:
 		reach = 2.1
+	if c.step_t > 0.0:
+		reach *= 0.5
 	if global_position.distance_to(c.global_position) < reach:
 		if game.rng.randf() < c.break_prob:
 			tackled = 0.8
@@ -559,6 +598,49 @@ func _do_kick() -> void:
 	var d := float(game.attack_dir[team])
 	var dir := Vector3(-global_position.x * 0.015, 0.0, d).normalized()
 	game.ball.kicked(self, dir)
+
+func _do_grubber() -> void:
+	var d := float(game.attack_dir[team])
+	var dir := Vector3(-global_position.x * 0.008, 0.0, d).normalized()
+	game.ball.grubber(self, dir)
+	cool_kick = 0.8
+
+
+func _do_bomb() -> void:
+	var d := float(game.attack_dir[team])
+	var dir := Vector3(-global_position.x * 0.01, 0.0, d).normalized()
+	game.ball.bomb(self, dir)
+	cool_kick = 0.8
+
+
+# sidestep: burst lateral hacia el lado con menos defensores
+func _start_step(side := 0.0) -> void:
+	if tackled > 0.0 or step_t > 0.0 or step_cd > 0.0:
+		return
+	var lat := Vector3(facing.z, 0.0, -facing.x)
+	if self == game.controlled:
+		var iv := Input.get_vector("move_left", "move_right",
+			"move_up", "move_down")
+		if absf(iv.x) > 0.3:
+			var r3 := game.cam_move_dir(Vector2(signf(iv.x), 0.0))
+			side = 1.0 if lat.dot(r3) > 0.0 else -1.0
+	if side == 0.0:
+		var left_n := 0
+		var right_n := 0
+		for p in game.players:
+			if p.team == team or p.tackled > 0.0:
+				continue
+			var rel := p.global_position - global_position
+			if rel.length() < 7.0:
+				if lat.dot(rel) > 0.0:
+					left_n += 1
+				else:
+					right_n += 1
+		side = 1.0 if left_n <= right_n else -1.0
+	step_dir = (lat * side).normalized()
+	step_t = 0.28
+	step_cd = 0.9
+	facing = step_dir
 
 
 func _do_drop_goal() -> void:

@@ -82,6 +82,7 @@ var replay_i := 0
 var maul_team := -1
 var maul_dir := 1.0
 var pending_maul_team := -1   # se arma cuando el catcher agarra el lineout
+var jackal_pressed := false  # el jugador apretó F para competir en el ruck
 
 # clima y estadísticas
 var weather := "clear"
@@ -133,6 +134,9 @@ func _register_input() -> void:
 	_add_key_action("pass_left", [KEY_Q])
 	_add_key_action("pass_right", [KEY_E])
 	_add_key_action("tackle", [KEY_F])
+	_add_key_action("grubber", [KEY_C])
+	_add_key_action("bomb", [KEY_V])
+	_add_key_action("step", [KEY_X])
 	_add_key_action("kick", [KEY_K])
 	_add_key_action("dropgoal", [KEY_G])
 	_add_key_action("fend", [KEY_J])
@@ -387,6 +391,8 @@ func _process(delta: float) -> void:
 		Phase.BREAKDOWN:
 			_record_frame()
 			phase_t -= delta
+			if Input.is_action_just_pressed("tackle"):
+				jackal_pressed = true
 			if phase_t <= 0.0:
 				_resolve_breakdown()
 		Phase.SCRUM:
@@ -729,6 +735,19 @@ func on_tackle(tackler: RugbyPlayer, carrier: RugbyPlayer) -> void:
 
 
 func _resolve_breakdown() -> void:
+	# jackal: un defensor sobre la pelota puede robarla
+	var jk := _nearest(1 - ruck_team, pending_spot, null, 3.2)
+	if jk != null:
+		var steal := 0.16
+		if jackal_pressed and controlled == jk:
+			steal += 0.3
+		if rng.randf() < steal:
+			ball.set_carrier(jk)
+			phase = Phase.PLAY
+			jackal_pressed = false
+			ui.flash_hint("¡ROBO EN EL RUCK de %s!" % _club_name(1 - ruck_team))
+			return
+	jackal_pressed = false
 	# penal de ruck para el equipo atacante (10%)
 	if rng.randf() < 0.1:
 		var adv := pending_spot + Vector3(0, 0, float(ruck_dir) * 10.0)

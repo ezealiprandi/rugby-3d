@@ -84,6 +84,26 @@ func throw_to(target: RugbyPlayer, thrower: RugbyPlayer) -> void:
 	angular_velocity = linear_velocity.normalized() * 18.0
 
 
+
+func grubber(kicker: RugbyPlayer, dir: Vector3) -> void:
+	release()
+	release_guard = 0.25
+	last_touch_team = kicker.team
+	pass_from = null
+	global_position = kicker.carry_point()
+	linear_velocity = dir * 15.0 + Vector3(0, 1.4, 0)
+	angular_velocity = Vector3(dir.z, 0.0, -dir.x) * 22.0
+
+
+func bomb(kicker: RugbyPlayer, dir: Vector3) -> void:
+	release()
+	release_guard = 0.35
+	last_touch_team = kicker.team
+	pass_from = null
+	global_position = kicker.carry_point()
+	linear_velocity = dir * 8.0 + Vector3(0, 14.5, 0)
+	angular_velocity = Vector3(dir.z, 0.0, -dir.x) * 16.0
+
 func kicked(kicker: RugbyPlayer, dir: Vector3) -> void:
 	release()
 	release_guard = 0.3

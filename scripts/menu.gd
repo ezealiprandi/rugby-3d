@@ -134,8 +134,11 @@ func _ready() -> void:
 Shift — sprint
 Q / E — pase a la izquierda / derecha
 Espacio — pase al apoyo más cercano
-F — placaje (lance a voluntad en defensa)
+F — placaje · en el ruck: intentá robar la pelota
+X — sidestep (amague lateral, difícil de placar)
 J — fend (quitarse el placaje)
+C — grubber (patada rasante por el piso)
+V — up and under (patada alta disputada)
 K — patada larga · en un penal: a los palos (+3)
 G — drop goal (en juego, cerca de los palos)
 Espacio ×2 — conversión: dirección y potencia
