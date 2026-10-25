@@ -22,6 +22,7 @@ var version_lbl: Label
 var hint_lbl: Label
 var champ_lbl: Label
 var nav_box: VBoxContainer
+var scroll_ref: ScrollContainer
 var nav_btns: Array[Button] = []
 var content_box: VBoxContainer
 var controls_lbl: RichTextLabel
@@ -253,7 +254,7 @@ func _ready() -> void:
 
 	# ===== panel lateral izquierdo =====
 	var side := PanelContainer.new()
-	side.custom_minimum_size = Vector2(580, 0)
+	side.custom_minimum_size = Vector2(940, 0)
 	var side_sb := StyleBoxFlat.new()
 	side_sb.bg_color = Color(0.02, 0.05, 0.035, 0.88)
 	side_sb.border_color = Color(1.0, 0.75, 0.15, 0.55)
@@ -300,20 +301,9 @@ func _ready() -> void:
 	svb.add_child(prompt_lbl)
 
 	# contenido scrolleable: nav / clubes / opciones / controles
-	var scroll := ScrollContainer.new()
-	scroll.follow_focus = true
-	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	svb.add_child(scroll)
-
-	content_box = VBoxContainer.new()
-	content_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	content_box.add_theme_constant_override("separation", 4)
-	scroll.add_child(content_box)
-
 	nav_box = VBoxContainer.new()
 	nav_box.add_theme_constant_override("separation", 2)
-	content_box.add_child(nav_box)
+	svb.add_child(nav_box)
 
 	var nav_items := [
 		["AMISTOSO", func(): _on_mode_pressed("friendly")],
@@ -336,14 +326,24 @@ func _ready() -> void:
 	nav_desc.add_theme_color_override("font_color", Color(0.75, 0.8, 0.72))
 	nav_desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	nav_desc.custom_minimum_size = Vector2(400, 44)
+	svb.add_child(nav_desc)
+
+	var scroll := ScrollContainer.new()
+	scroll_ref = scroll
+	scroll.follow_focus = true
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	svb.add_child(scroll)
+
+	content_box = VBoxContainer.new()
+	content_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	content_box.add_theme_constant_override("separation", 4)
+	scroll.add_child(content_box)
+
 	var hom := _lbl(14)
 	hom.add_theme_color_override("font_color", Color(0.6, 0.65, 0.58))
 	hom.text = "Un homenaje al rugby tucumano"
 	content_box.add_child(hom)
-
-	content_box.add_child(nav_desc)
-
-	nav_box.get_parent().move_child(nav_desc, nav_box.get_index() + 1)
 
 	# grilla de clubes (HOME/AWAY)
 	grid = GridContainer.new()
@@ -490,6 +490,8 @@ func _ready() -> void:
 
 	champ_lbl = _lbl(20)
 	champ_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	champ_lbl.custom_minimum_size = Vector2(600, 0)
+	champ_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	champ_lbl.add_theme_color_override("font_color", Color(1.0, 0.85, 0.3))
 	hero_box.add_child(champ_lbl)
 
@@ -511,13 +513,14 @@ func _ready() -> void:
 	preview_box.visible = false
 	rvb.add_child(preview_box)
 	preview_tex = TextureRect.new()
-	preview_tex.custom_minimum_size = Vector2(240, 300)
+	preview_tex.custom_minimum_size = Vector2(200, 252)
 	preview_tex.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	preview_tex.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	preview_tex.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	preview_box.add_child(preview_tex)
 	preview_lbl = _lbl(24)
 	preview_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	preview_lbl.custom_minimum_size = Vector2(560, 0)
 	preview_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	preview_lbl.add_theme_color_override("font_color", Color(0.95, 0.9, 0.6))
 	preview_lbl.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
@@ -590,6 +593,8 @@ func _set_nav_desc(i: int) -> void:
 
 
 func _update_view() -> void:
+	if scroll_ref != null:
+		scroll_ref.scroll_vertical = 0
 	var is_title := step == Step.TITLE
 	nav_box.visible = is_title
 	nav_desc.visible = is_title
