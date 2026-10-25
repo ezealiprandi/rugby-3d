@@ -135,6 +135,7 @@ Shift — sprint
 Espacio — pasar (¡hacia atrás!)
 J — fend (quitarse el placaje)
 K — patada larga · en un penal: a los palos (+3)
+G — drop goal (en juego, cerca de los palos)
 Espacio ×2 — conversión: dirección y potencia
 Esc — pausa
 R / M — revancha / menú (al final, o M en práctica)

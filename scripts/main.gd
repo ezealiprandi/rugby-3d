@@ -64,6 +64,19 @@ var conv_t := 0.0
 var conv_done_flag := false
 var conv_pts := 2                     # 2 conversión · 3 penal a los palos
 
+# drop goal en juego abierto
+var drop_goal_team := -1
+var drop_prev_z := 0.0
+
+# disciplina
+var pen_count := [0, 0]
+var celebrating: RugbyPlayer = null
+
+# audio
+var sfx_whistle: AudioStreamPlayer
+var sfx_crowd: AudioStreamPlayer
+var sfx_cheer: AudioStreamPlayer
+
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
@@ -80,6 +93,9 @@ func _ready() -> void:
 	menu = RugbyMenu.new()
 	menu.game = self
 	add_child(menu)
+	sfx_whistle = _mk_audio("res://assets/whistle.wav", -6.0)
+	sfx_crowd = _mk_audio("res://assets/crowd.wav", -16.0)
+	sfx_cheer = _mk_audio("res://assets/cheer.wav", -4.0)
 	ui.set_info("WASD mover · Shift sprint · Espacio pasar · K patada · Esc pausa")
 	ui.visible = false
 	menu.start()
@@ -98,6 +114,7 @@ func _register_input() -> void:
 	_add_key_action("sprint", [KEY_SHIFT])
 	_add_key_action("pass", [KEY_SPACE])
 	_add_key_action("kick", [KEY_K])
+	_add_key_action("dropgoal", [KEY_G])
 	_add_key_action("fend", [KEY_J])
 	_add_key_action("confirm", [KEY_ENTER, KEY_KP_ENTER])
 	_add_key_action("restart", [KEY_R])
@@ -112,6 +129,20 @@ func _add_key_action(action: String, keys: Array) -> void:
 		var ev := InputEventKey.new()
 		ev.physical_keycode = k
 		InputMap.action_add_event(action, ev)
+
+
+func _mk_audio(path: String, db: float) -> AudioStreamPlayer:
+	var a := AudioStreamPlayer.new()
+	a.volume_db = db
+	if ResourceLoader.exists(path):
+		a.stream = load(path)
+	add_child(a)
+	return a
+
+
+func _whistle() -> void:
+	if sfx_whistle.stream != null:
+		sfx_whistle.play()
 
 
 # ─── Setup ──────────────────────────────────────────────────────────────────
@@ -140,6 +171,16 @@ func _spawn_players() -> void:
 			p.team = team
 			p.index = i
 			p.rating = club["rating"]
+			# stats por posición: forwards fuertes/lentos, backs rápidos
+			match i:
+				0, 1, 2:   p.speed_mult = 0.84; p.break_prob = 0.30   # front row
+				3, 4:      p.speed_mult = 0.90; p.break_prob = 0.28   # locks
+				5, 6, 7:   p.speed_mult = 0.95; p.break_prob = 0.32   # back row
+				8:         p.speed_mult = 1.04; p.break_prob = 0.08   # medio scrum
+				9:         p.speed_mult = 1.02; p.break_prob = 0.06   # apertura
+				10, 13:    p.speed_mult = 1.08; p.break_prob = 0.12   # centros
+				11, 14:    p.speed_mult = 1.16; p.break_prob = 0.04   # wings
+				12:        p.speed_mult = 1.14; p.break_prob = 0.05   # fullback
 			p.col_primary = club["primary"]
 			p.col_secondary = club["secondary"]
 			p.col_shorts = club["shorts"]
@@ -165,7 +206,12 @@ func start_match(home: int, away: int, m := "friendly") -> void:
 	half = 1
 	clock = 0.0
 	attack_dir = [1, -1]
+	pen_count = [0, 0]
+	drop_goal_team = -1
+	celebrating = null
 	first_kicker = 1   # el equipo del jugador recibe el saque inicial
+	if sfx_crowd.stream != null and not sfx_crowd.playing:
+		sfx_crowd.play()
 	if mode == "tournament":
 		if tour_fixture.is_empty():
 			# fixture del torneo: del rival más débil al más fuerte
@@ -201,6 +247,8 @@ func return_to_menu() -> void:
 	ui.visible = false
 	phase = Phase.MENU
 	tour_fixture.clear()
+	if sfx_crowd.playing:
+		sfx_crowd.stop()
 	menu.start()
 
 
@@ -247,6 +295,7 @@ func reset_for_kickoff(kt: int) -> void:
 
 
 func _do_kickoff() -> void:
+	_whistle()
 	var kd := float(attack_dir[kick_team])
 	ball.release()
 	ball.global_position = Vector3(0.0, 0.9, -kd * 1.2)
@@ -344,9 +393,11 @@ func _check_clock() -> void:
 		attack_dir = [-attack_dir[0], -attack_dir[1]]
 		phase = Phase.BETWEEN
 		phase_t = 3.0
+		_whistle()
 		ui.show_message("¡Entretiempo! Cambian de campo", 2.8)
 	else:
 		phase = Phase.END
+		_whistle()
 		if mode == "tournament":
 			if score[0] > score[1]:
 				tour_wins += 1
@@ -378,6 +429,25 @@ func _check_boundaries() -> void:
 				"¡Touch! Lineout para %s" % _club_name(1 - c.team))
 	else:
 		var bp := ball.global_position
+		# drop goal: ¿cruzó los palos por arriba del travesaño?
+		if drop_goal_team >= 0:
+			var dd := float(attack_dir[drop_goal_team])
+			var was := (drop_prev_z - dd * TRY_Z) * dd
+			var now := (bp.z - dd * TRY_Z) * dd
+			drop_prev_z = bp.z
+			if was < 0.0 and now >= 0.0:
+				var scored := absf(bp.x) <= 2.8 and bp.y >= 3.0
+				var t3 := drop_goal_team
+				drop_goal_team = -1
+				if scored:
+					score[t3] += 3
+					ui.show_message("¡DROP GOAL! +3 para %s" % _club_name(t3), 2.4)
+					if sfx_cheer.stream != null:
+						sfx_cheer.play()
+					reset_for_kickoff(1 - t3)
+				return
+			if ball.carrier != null or bp.y < 0.3:
+				drop_goal_team = -1
 		if absf(bp.x) > FIELD_HALF_W + 0.3:
 			var recv := 1 - ball.last_touch_team if ball.last_touch_team >= 0 else 0
 			_event_lineout(recv, bp.z, signf(bp.x),
@@ -395,12 +465,16 @@ func _on_try(team: int) -> void:
 	phase = Phase.SCORE
 	phase_t = 2.0
 	var scorer := ball.carrier
+	celebrating = scorer
 	ball.release()
 	if scorer != null:
 		ball.global_position = scorer.global_position + Vector3(0, 0.3, 0)
 		scorer.tackled = 0.0
 	for p in players:
 		p.tackled = 0.0
+	_whistle()
+	if sfx_cheer.stream != null:
+		sfx_cheer.play()
 	ui.show_message("¡¡¡TRY de %s!!! +5" % _club_name(team), 2.2)
 
 
@@ -422,6 +496,7 @@ func _setup_kick_at_goal(pts: int, team: int, spot: Vector3) -> void:
 	conv_dir = int(attack_dir[conv_team])
 	conv_spot_x = spot.x
 	conv_kick_pos = spot
+	celebrating = null
 	# ubicar al pateador (apertura idx 9 o el más cercano disponible)
 	var kicker := players[9 + conv_team * TEAM_SIZE]
 	if kicker.tackled > 0.0:
@@ -601,6 +676,7 @@ func _event_scrum(feed_team: int, spot: Vector3, msg: String) -> void:
 	if phase != Phase.PLAY and phase != Phase.BREAKDOWN:
 		return
 	ui.show_message(msg, 2.2)
+	_whistle()
 	pending_team = feed_team
 	pending_spot = Vector3(clampf(spot.x, -FIELD_HALF_W + 6.0, FIELD_HALF_W - 6.0),
 		0.0, clampf(spot.z, -TRY_Z + 7.0, TRY_Z - 7.0))
@@ -624,6 +700,7 @@ func _resolve_scrum() -> void:
 
 func _event_lineout(throw_team: int, mark_z: float, side: float, msg: String) -> void:
 	ui.show_message(msg, 2.0)
+	_whistle()
 	pending_team = throw_team
 	lineout_mark = clampf(mark_z, -44.0, 44.0)
 	lineout_side = signf(side) if side != 0.0 else 1.0
@@ -657,8 +734,22 @@ func _resolve_lineout() -> void:
 
 func _event_penalty(team: int, spot: Vector3, msg: String) -> void:
 	ui.show_message(msg, 2.2)
+	_whistle()
 	pending_team = team
 	pending_spot = spot
+	# acumulación de penales → tarjeta amarilla
+	var offender := 1 - team
+	pen_count[offender] += 1
+	if pen_count[offender] >= 2:
+		var card := _nearest(offender, spot, null, 999.0)
+		if card != null:
+			card.sin_bin_t = 45.0
+			card.tackled = 0.0
+			card.global_position = Vector3(
+				signf(spot.x + 1.0) * (FIELD_HALF_W + 6.0), 0.0, spot.z)
+			pen_count[offender] = 0
+			ui.show_message("¡TARJETA AMARILLA! %s juega con 14" %
+				_club_name(offender), 3.0)
 	ball.release()
 	ball.freeze = true
 	ball.global_position = spot + Vector3(0, 1.0, 0)
@@ -703,6 +794,7 @@ func _tour_next() -> void:
 
 func _event_dropout(team: int, msg: String) -> void:
 	ui.show_message(msg, 2.2)
+	_whistle()
 	drop_team = team
 	pending_team = team
 	ball.release()
@@ -777,7 +869,7 @@ func _nearest(team: int, pos: Vector3, exclude: RugbyPlayer, maxd: float) -> Rug
 	var best: RugbyPlayer = null
 	var bd := maxd
 	for p in players:
-		if p.team != team or p == exclude or p.tackled > 0.0:
+		if p.team != team or p == exclude or p.tackled > 0.0 or p.sin_bin_t > 0.0:
 			continue
 		var d := p.global_position.distance_to(pos)
 		if d < bd:
@@ -791,7 +883,8 @@ func find_pass_target(carrier: RugbyPlayer, behind_only := true) -> RugbyPlayer:
 	var best: RugbyPlayer = null
 	var bd := 999.0
 	for p in players:
-		if p.team != carrier.team or p == carrier or p.tackled > 0.0:
+		if p.team != carrier.team or p == carrier or p.tackled > 0.0 \
+				or p.sin_bin_t > 0.0:
 			continue
 		var fwd := (p.global_position.z - carrier.global_position.z) * d
 		if behind_only and fwd > 0.4:

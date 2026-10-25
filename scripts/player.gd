@@ -22,6 +22,9 @@ var col_shorts := Color(0.9, 0.9, 0.9)
 var alt_kit := false                  # kit visitante alternativo si hay choque de colores
 var jersey_tex: Texture2D = null      # camiseta oficial (patrón URT)
 var jersey_tex_alt: Texture2D = null  # versión alternativa
+var speed_mult := 1.0                 # velocidad según posición
+var break_prob := 0.0                 # prob. de romper el placaje (forwards)
+var sin_bin_t := 0.0                  # tiempo restante en el sin bin
 
 var visual: Node3D
 var marker: MeshInstance3D
@@ -129,6 +132,17 @@ func _build_visual() -> void:
 
 	_capsule(visual, 0.14, 0.3, 1.88, skin_mat)
 
+	# casco de scrum en la primera línea
+	if index < 3:
+		var cap := MeshInstance3D.new()
+		var cm := SphereMesh.new()
+		cm.radius = 0.16
+		cm.height = 0.24
+		cap.mesh = cm
+		cap.material_override = trim_mat
+		cap.position = Vector3(0.0, 1.94, 0.0)
+		visual.add_child(cap)
+
 	var num := Label3D.new()
 	num.text = str(index + 1)
 	num.font_size = 80
@@ -163,6 +177,13 @@ func carry_point() -> Vector3:
 
 func _physics_process(delta: float) -> void:
 	if game == null:
+		return
+	if sin_bin_t > 0.0:
+		sin_bin_t -= delta
+		velocity.x = 0.0
+		velocity.z = 0.0
+		_apply_gravity_move(delta)
+		_update_visual(delta, 0.0)
 		return
 	cool_pass = maxf(0.0, cool_pass - delta)
 	cool_fend = maxf(0.0, cool_fend - delta)
@@ -209,12 +230,15 @@ func _desired_velocity() -> Vector3:
 	if game.controlled == self:
 		var iv := Input.get_vector("move_left", "move_right", "move_up", "move_down")
 		var d := game.cam_move_dir(iv)
-		var sp := SPRINT_SPEED if Input.is_action_pressed("sprint") else BASE_SPEED
+		var sp := (SPRINT_SPEED if Input.is_action_pressed("sprint") else BASE_SPEED) \
+			* speed_mult
 		if game.ball.carrier == self:
 			if Input.is_action_just_pressed("pass"):
 				_do_pass()
 			if Input.is_action_just_pressed("kick"):
 				_do_kick()
+			if Input.is_action_just_pressed("dropgoal"):
+				_do_drop_goal()
 			if Input.is_action_just_pressed("fend") and cool_fend <= 0.0:
 				_do_fend()
 		return d * sp
@@ -225,7 +249,7 @@ func _ai_velocity() -> Vector3:
 	var b := game.ball
 	if game.phase == RugbyGame.Phase.BREAKDOWN:
 		return _ruck_ai()
-	var ai_speed := AI_CHASE * rating
+	var ai_speed := AI_CHASE * rating * speed_mult
 	if b.carrier == null:
 		if _team_rank(b.global_position) < 3 and b.global_position.y < 3.2:
 			return _seek(b.global_position, ai_speed)
@@ -329,7 +353,12 @@ func _carrier_ai() -> Vector3:
 			evade = -evade
 		dir = (dir * 0.55 + evade * 0.85).normalized()
 
-	return dir * AI_CHASE * rating
+	if nearest_d > 6.0 and game.drop_goal_team < 0 \
+			and global_position.z * d > 8.0 and game.rng.randf() < 0.002:
+		_do_drop_goal()
+		return Vector3.ZERO
+
+	return dir * AI_CHASE * rating * speed_mult
 
 
 func _support_ai() -> Vector3:
@@ -341,20 +370,20 @@ func _support_ai() -> Vector3:
 	target.x = clampf(target.x, -31.0, 31.0)
 	if (target.z - c.global_position.z) * d > -1.5:
 		target.z = c.global_position.z - d * 1.5
-	return _seek(target, AI_JOG)
+	return _seek(target, AI_JOG * speed_mult)
 
 
 func _defense_ai() -> Vector3:
 	var c := game.ball.carrier
 	var cdir := float(game.attack_dir[c.team])
 	if _team_rank(c.global_position) < 3:
-		return _seek(c.global_position, AI_CHASE * rating)
+		return _seek(c.global_position, AI_CHASE * rating * speed_mult)
 	if (global_position.z - c.global_position.z) * cdir < -5.0:
-		return _seek(c.global_position, AI_CHASE * 0.95 * rating)
+		return _seek(c.global_position, AI_CHASE * 0.95 * rating * speed_mult)
 	var lane := lerpf(-32.0, 32.0, index / 14.0)
 	var line_z := clampf(c.global_position.z + cdir * 7.0, -48.0, 48.0)
 	var target := Vector3(clampf(lane + c.global_position.x * 0.35, -32.0, 32.0), 0.0, line_z)
-	return _seek(target, AI_JOG * rating)
+	return _seek(target, AI_JOG * rating * speed_mult)
 
 
 func _try_pickup() -> void:
@@ -383,6 +412,10 @@ func _try_tackle() -> void:
 		return
 	var reach := RugbyGame.TACKLE_RANGE * (1.0 if game.controlled != self else 1.25)
 	if global_position.distance_to(c.global_position) < reach:
+		if game.rng.randf() < c.break_prob:
+			tackled = 0.8
+			game.ui.flash_hint("¡ROMPIÓ EL PLACAJE!")
+			return
 		game.on_tackle(self, c)
 
 
@@ -405,6 +438,29 @@ func _do_kick() -> void:
 	var d := float(game.attack_dir[team])
 	var dir := Vector3(-global_position.x * 0.015, 0.0, d).normalized()
 	game.ball.kicked(self, dir)
+
+
+func _do_drop_goal() -> void:
+	var d := float(game.attack_dir[team])
+	var posts := Vector3(0.0, 0.0, d * RugbyField.TRY)
+	var dist := Vector2(posts.x - global_position.x,
+		posts.z - global_position.z).length()
+	if dist > 42.0:
+		game.ui.flash_hint("¡Muy lejos para el drop!")
+		return
+	var from := carry_point()
+	game.ball.release()
+	game.ball.global_position = from
+	var t := clampf(dist / 20.0, 0.9, 2.0)
+	var v := Vector3(posts.x - from.x, 0.0, posts.z - from.z) / t
+	v.y = (4.2 + 4.9 * t * t) / t
+	game.ball.linear_velocity = v
+	game.ball.angular_velocity = Vector3(-d, 0, 0) * 8.0
+	game.ball.release_guard = 0.4
+	game.ball.last_touch_team = team
+	game.drop_goal_team = team
+	game.drop_prev_z = from.z
+	game.ui.flash_hint("¡DROP GOAL!")
 
 
 func _do_fend() -> void:
@@ -431,8 +487,15 @@ func _update_visual(delta: float, h_speed: float) -> void:
 		arm_l.rotation.x = lerpf(arm_l.rotation.x, 0.0, delta * 6.0)
 		arm_r.rotation.x = lerpf(arm_r.rotation.x, 0.0, delta * 6.0)
 		return
+	# salto en el lineout para los jumpers del equipo que tira
+	var jump_y := 0.0
+	if game.phase == RugbyGame.Phase.LINEOUT and game.phase_t < 1.0 \
+			and team == game.pending_team and index in [2, 3, 6]:
+		jump_y = sin((1.0 - game.phase_t) * PI) * 0.55
+	# celebración de try: brazos arriba
+	var celebra: bool = game.celebrating == self and game.phase == RugbyGame.Phase.SCORE
 	visual.rotation.x = lerpf(visual.rotation.x, run * 0.16, delta * 8.0)
-	visual.position.y = lerpf(visual.position.y, 0.0, delta * 8.0) \
+	visual.position.y = lerpf(visual.position.y, jump_y, delta * 8.0) \
 		+ absf(sin(bob_t)) * 0.05 * run
 	var swing := sin(bob_t) * (0.85 * run)
 	leg_l.rotation.x = swing
@@ -442,6 +505,9 @@ func _update_visual(delta: float, h_speed: float) -> void:
 	if game != null and game.ball != null and game.ball.carrier == self:
 		arm_l.rotation.x = lerpf(arm_l.rotation.x, -1.1, delta * 10.0)
 		arm_r.rotation.x = lerpf(arm_r.rotation.x, -1.1, delta * 10.0)
+	if celebra:
+		arm_l.rotation.x = lerpf(arm_l.rotation.x, -2.7, delta * 10.0)
+		arm_r.rotation.x = lerpf(arm_r.rotation.x, -2.7, delta * 10.0)
 	if h_speed > 0.4:
 		visual.rotation.y = lerp_angle(visual.rotation.y,
 			atan2(facing.x, facing.z), delta * 10.0)
