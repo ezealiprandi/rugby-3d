@@ -46,6 +46,18 @@ func _build_env() -> void:
 	env.sky = sky
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
 	env.ambient_light_energy = 0.75
+	# Forward+: tonemapping, bloom (solo los faros emisivos), SSAO, niebla sutil
+	env.set("tonemap_mode", 2)   # 2 = filmic
+	env.glow_enabled = true
+	env.glow_intensity = 0.45
+	env.glow_bloom = 0.25
+	env.ssao_enabled = true
+	env.ssao_radius = 2.0
+	env.ssao_intensity = 1.6
+	env.fog_enabled = true
+	env.fog_density = 0.0035
+	env.fog_light_color = Color(0.75, 0.68, 0.6)
+	env.fog_light_energy = 0.5
 	we.environment = env
 	add_child(we)
 
@@ -71,9 +83,25 @@ func _build_ground() -> void:
 	cs.position = Vector3(0.0, -0.5, 0.0)
 	body.add_child(cs)
 
-	# fajas de césped alternadas (efecto corte a lo ancho)
-	var green_a := _mat(Color(0.15, 0.4, 0.15))
-	var green_b := _mat(Color(0.19, 0.48, 0.19))
+	# fajas de césped alternadas con shader: variación de tono por parche
+	var grass_shader := Shader.new()
+	grass_shader.code = """
+shader_type spatial;
+uniform vec4 color : source_color;
+void fragment() {
+	vec2 cell = floor(VERTEX.xz * 2.5);
+	float n = fract(sin(dot(cell, vec2(12.9898, 78.233))) * 43758.5453);
+	ALBEDO = color.rgb * (0.86 + n * 0.26);
+	ROUGHNESS = 0.95;
+	SPECULAR = 0.15;
+}
+"""
+	var green_a := ShaderMaterial.new()
+	green_a.shader = grass_shader
+	green_a.set_shader_parameter("color", Color(0.15, 0.4, 0.15))
+	var green_b := ShaderMaterial.new()
+	green_b.shader = grass_shader
+	green_b.set_shader_parameter("color", Color(0.19, 0.48, 0.19))
 	for i in 17:
 		var mi := MeshInstance3D.new()
 		var mesh := BoxMesh.new()

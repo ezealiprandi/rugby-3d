@@ -10,17 +10,37 @@ var game: RugbyGame
 var step := Step.HIDDEN
 var cursor := 0
 var home_idx := -1
+var mode := "friendly"
 
 var bg: ColorRect
 var title_lbl: Label
 var subtitle_lbl: Label
 var prompt_lbl: Label
+var result_lbl: Label
 var play_btn: Button
+var tourney_btn: Button
+var practice_btn: Button
 var controls_btn: Button
 var controls_lbl: Label
 var grid: GridContainer
 var buttons: Array[Button] = []
 var footer_lbl: Label
+
+
+func _mode_button(text: String, bg_c: Color, border_c: Color) -> Button:
+	var b := Button.new()
+	b.text = text
+	b.custom_minimum_size = Vector2(300, 50)
+	b.add_theme_font_size_override("font_size", 24)
+	b.add_theme_stylebox_override("normal", _btn_style(bg_c, border_c))
+	b.add_theme_stylebox_override("hover",
+		_btn_style(bg_c.lightened(0.25), border_c.lightened(0.35)))
+	b.add_theme_stylebox_override("pressed",
+		_btn_style(bg_c.darkened(0.25), border_c.lightened(0.35)))
+	b.add_theme_stylebox_override("focus",
+		_btn_style(bg_c.lightened(0.25), Color(1.0, 0.85, 0.2)))
+	b.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	return b
 
 
 func _lbl(size: int) -> Label:
@@ -74,54 +94,50 @@ func _ready() -> void:
 	title_lbl.add_theme_color_override("font_color", Color(1.0, 0.75, 0.15))
 	vb.add_child(title_lbl)
 
+	# franja dorada de acento bajo el título
+	var accent := ColorRect.new()
+	accent.custom_minimum_size = Vector2(460, 4)
+	accent.color = Color(1.0, 0.75, 0.15, 0.9)
+	accent.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	vb.add_child(accent)
+
 	subtitle_lbl = _lbl(20)
 	subtitle_lbl.add_theme_color_override("font_color", Color(0.8, 0.9, 0.8))
 	vb.add_child(subtitle_lbl)
 
+	result_lbl = _lbl(22)
+	result_lbl.add_theme_color_override("font_color", Color(0.5, 0.95, 0.5))
+	result_lbl.visible = false
+	vb.add_child(result_lbl)
+
 	prompt_lbl = _lbl(28)
 	vb.add_child(prompt_lbl)
 
-	play_btn = Button.new()
-	play_btn.text = "JUGAR"
-	play_btn.custom_minimum_size = Vector2(280, 56)
-	play_btn.add_theme_font_size_override("font_size", 30)
-	play_btn.add_theme_stylebox_override("normal",
-		_btn_style(Color(0.1, 0.4, 0.18), Color(0.4, 0.9, 0.4)))
-	play_btn.add_theme_stylebox_override("hover",
-		_btn_style(Color(0.16, 0.55, 0.25), Color(0.7, 1.0, 0.7)))
-	play_btn.add_theme_stylebox_override("pressed",
-		_btn_style(Color(0.08, 0.3, 0.13), Color(0.7, 1.0, 0.7)))
-	play_btn.add_theme_stylebox_override("focus",
-		_btn_style(Color(0.16, 0.55, 0.25), Color(1.0, 0.85, 0.2)))
-	play_btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	play_btn.pressed.connect(_on_play_pressed)
+	play_btn = _mode_button("AMISTOSO", Color(0.1, 0.4, 0.18), Color(0.4, 0.9, 0.4))
+	play_btn.pressed.connect(func(): _on_mode_pressed("friendly"))
 	vb.add_child(play_btn)
 
-	controls_btn = Button.new()
-	controls_btn.text = "CONTROLES"
-	controls_btn.custom_minimum_size = Vector2(280, 48)
-	controls_btn.add_theme_font_size_override("font_size", 24)
-	controls_btn.add_theme_stylebox_override("normal",
-		_btn_style(Color(0.15, 0.18, 0.3), Color(0.5, 0.6, 0.9)))
-	controls_btn.add_theme_stylebox_override("hover",
-		_btn_style(Color(0.22, 0.28, 0.42), Color(0.7, 0.8, 1.0)))
-	controls_btn.add_theme_stylebox_override("pressed",
-		_btn_style(Color(0.1, 0.13, 0.22), Color(0.7, 0.8, 1.0)))
-	controls_btn.add_theme_stylebox_override("focus",
-		_btn_style(Color(0.22, 0.28, 0.42), Color(1.0, 0.85, 0.2)))
-	controls_btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	tourney_btn = _mode_button("TORNEO URT · 11 fechas", Color(0.35, 0.25, 0.05), Color(0.9, 0.75, 0.2))
+	tourney_btn.pressed.connect(func(): _on_mode_pressed("tournament"))
+	vb.add_child(tourney_btn)
+
+	practice_btn = _mode_button("PRÁCTICA LIBRE", Color(0.15, 0.18, 0.3), Color(0.5, 0.6, 0.9))
+	practice_btn.pressed.connect(func(): _on_mode_pressed("practice"))
+	vb.add_child(practice_btn)
+
+	controls_btn = _mode_button("CONTROLES", Color(0.15, 0.18, 0.3), Color(0.5, 0.6, 0.9))
 	controls_btn.pressed.connect(_on_controls_pressed)
 	vb.add_child(controls_btn)
-
 	controls_lbl = _lbl(22)
 	controls_lbl.add_theme_color_override("font_color", Color(0.92, 0.95, 0.9))
 	controls_lbl.text = """WASD / Flechas — mover
 Shift — sprint
 Espacio — pasar (¡hacia atrás!)
-K — patada larga
+J — fend (quitarse el placaje)
+K — patada larga · en un penal: a los palos (+3)
 Espacio ×2 — conversión: dirección y potencia
 Esc — pausa
-R / M — revancha / menú (al final)
+R / M — revancha / menú (al final, o M en práctica)
 
 El cono amarillo marca tu jugador: el portador en ataque,
 el defensor más cercano al balón en defensa."""
@@ -138,10 +154,12 @@ el defensor más cercano al balón en defensa."""
 	var clubs: Array = RugbyTeams.CLUBS
 	for i in clubs.size():
 		var b := Button.new()
-		b.custom_minimum_size = Vector2(430, 40)
+		b.custom_minimum_size = Vector2(430, 44)
 		b.add_theme_font_size_override("font_size", 19)
 		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
 		b.focus_mode = Control.FOCUS_ALL
+		b.icon = RugbyTeams.jersey_texture(i)
+		b.expand_icon = true
 		b.add_theme_stylebox_override("normal",
 			_btn_style(Color(0.08, 0.12, 0.09, 0.9), Color(0.3, 0.4, 0.3)))
 		b.add_theme_stylebox_override("hover",
@@ -179,7 +197,10 @@ func _update_view() -> void:
 	var is_controls := step == Step.CONTROLS
 	title_lbl.visible = is_title
 	subtitle_lbl.visible = is_title
+	result_lbl.visible = is_title and result_lbl.text != ""
 	play_btn.visible = is_title
+	tourney_btn.visible = is_title
+	practice_btn.visible = is_title
 	controls_btn.visible = is_title
 	grid.visible = step == Step.HOME or step == Step.AWAY
 	controls_lbl.visible = is_controls
@@ -188,11 +209,12 @@ func _update_view() -> void:
 		Step.TITLE:
 			title_lbl.text = "RUGBY TUCUMANO 3D"
 			subtitle_lbl.text = "Unión de Rugby de Tucumán · Edición clubes"
-			prompt_lbl.text = "15 vs 15 · reglas completas · conversión al palo"
-			footer_lbl.text = "Click o Enter para jugar"
+			prompt_lbl.text = "15 vs 15 · camisetas oficiales · árbitro en cancha"
+			footer_lbl.text = "Click o Enter para jugar · v3.0"
 			play_btn.grab_focus()
 		Step.HOME:
-			prompt_lbl.text = "ELEGÍ TU EQUIPO"
+			prompt_lbl.text = "ELEGÍ TU EQUIPO" + \
+				(" — TORNEO URT" if mode == "tournament" else "")
 			footer_lbl.text = "↑↓ mover · Enter/click confirmar · Esc volver"
 			_fill_rows(-1)
 			buttons[cursor].grab_focus()
@@ -256,10 +278,16 @@ func _back() -> void:
 	_update_view()
 
 
-func _on_play_pressed() -> void:
+func _on_mode_pressed(m: String) -> void:
+	mode = m
+	result_lbl.text = ""
 	step = Step.HOME
 	cursor = 0
 	_update_view()
+
+
+func flash_result(msg: String) -> void:
+	result_lbl.text = msg
 
 
 func _on_controls_pressed() -> void:
@@ -279,6 +307,11 @@ func _on_team_pressed(i: int) -> void:
 	match step:
 		Step.HOME:
 			home_idx = i
+			if mode == "tournament":
+				# el fixture del torneo se arma solo, no hace falta rival
+				hide_menu()
+				game.start_match(home_idx, -1, "tournament")
+				return
 			step = Step.AWAY
 			cursor = 0 if i != 0 else 1
 			_update_view()
@@ -286,4 +319,4 @@ func _on_team_pressed(i: int) -> void:
 			if i == home_idx:
 				return
 			hide_menu()
-			game.start_match(home_idx, i)
+			game.start_match(home_idx, i, mode)

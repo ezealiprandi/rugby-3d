@@ -12,12 +12,16 @@ var index := 0
 var rating := 1.0
 var tackled := 0.0
 var cool_pass := 0.0
+var cool_fend := 0.0
+var cool_kick := 0.0
 var facing := Vector3(0, 0, 1)
 var hold_pos := Vector3.ZERO
 var col_primary := Color(0.2, 0.4, 0.9)
 var col_secondary := Color(0.1, 0.1, 0.1)
 var col_shorts := Color(0.9, 0.9, 0.9)
 var alt_kit := false                  # kit visitante alternativo si hay choque de colores
+var jersey_tex: Texture2D = null      # camiseta oficial (patrón URT)
+var jersey_tex_alt: Texture2D = null  # versión alternativa
 
 var visual: Node3D
 var marker: MeshInstance3D
@@ -86,50 +90,57 @@ func _build_visual() -> void:
 	var bulk := 1.08 if is_forward() else 0.94
 	var jersey := col_secondary if alt_kit else col_primary
 	var trim := col_primary if alt_kit else col_secondary
-	# tono de piel variado por jugador
 	var skin_t := fmod(float(index * 7 + team * 3), 10.0) / 10.0
 	var skin := Color(0.93, 0.78, 0.62).lerp(Color(0.42, 0.29, 0.18), skin_t)
 	var skin_mat := _mat(skin)
 	var jersey_mat := _mat(jersey)
+	var jtex: Texture2D = jersey_tex_alt if alt_kit else jersey_tex
+	if jtex != null:
+		jersey_mat.albedo_texture = jtex
+		jersey_mat.albedo_color = Color(1, 1, 1)
 	var trim_mat := _mat(trim)
 	var shorts_mat := _mat(col_shorts)
 
-	# piernas (pivote en la cadera para animar la zancada)
 	for side in [-1.0, 1.0]:
 		var leg := Node3D.new()
 		leg.position = Vector3(side * 0.13 * bulk, 0.98, 0.0)
 		visual.add_child(leg)
 		_capsule(leg, 0.1, 0.62, -0.4, skin_mat)
-		_capsule(leg, 0.105, 0.22, -0.66, trim_mat)     # medias
-		_box(leg, Vector3(0.2, 0.1, 0.3), Vector3(0, -0.9, 0.05), _mat(Color(0.15, 0.15, 0.15)))  # botines
+		_capsule(leg, 0.105, 0.22, -0.66, trim_mat)
+		_box(leg, Vector3(0.2, 0.1, 0.3), Vector3(0, -0.9, 0.05), _mat(Color(0.15, 0.15, 0.15)))
 		if side < 0.0:
 			leg_l = leg
 		else:
 			leg_r = leg
 
-	# pantalón
 	_box(visual, Vector3(0.42 * bulk, 0.3, 0.32 * bulk), Vector3(0, 1.02, 0), shorts_mat)
-
-	# torso + banda de la camiseta
 	_box(visual, Vector3(0.48 * bulk, 0.62, 0.3 * bulk), Vector3(0, 1.38, 0), jersey_mat)
-	_box(visual, Vector3(0.5 * bulk, 0.16, 0.32 * bulk), Vector3(0, 1.44, 0), trim_mat)
 
-	# brazos (pivote en el hombro)
 	for side in [-1.0, 1.0]:
 		var arm := Node3D.new()
 		arm.position = Vector3(side * (0.28 * bulk + 0.08), 1.6, 0.0)
 		visual.add_child(arm)
-		_capsule(arm, 0.085, 0.5, -0.28, jersey_mat)   # manga
-		_capsule(arm, 0.075, 0.2, -0.58, skin_mat)     # antebrazo
+		_capsule(arm, 0.085, 0.5, -0.28, jersey_mat)
+		_capsule(arm, 0.075, 0.2, -0.58, skin_mat)
 		if side < 0.0:
 			arm_l = arm
 		else:
 			arm_r = arm
 
-	# cabeza
 	_capsule(visual, 0.14, 0.3, 1.88, skin_mat)
 
-	# cono marcador del jugador controlado
+	var num := Label3D.new()
+	num.text = str(index + 1)
+	num.font_size = 80
+	num.pixel_size = 0.0045
+	num.modulate = trim
+	num.outline_size = 8
+	num.outline_modulate = Color(0.9, 0.9, 0.9) if jersey.get_luminance() < 0.4 \
+		else Color(0.08, 0.08, 0.08)
+	num.rotation.y = PI
+	num.position = Vector3(0.0, 1.44, -0.17 * bulk)
+	visual.add_child(num)
+
 	marker = MeshInstance3D.new()
 	var cone := CylinderMesh.new()
 	cone.top_radius = 0.0
@@ -154,6 +165,8 @@ func _physics_process(delta: float) -> void:
 	if game == null:
 		return
 	cool_pass = maxf(0.0, cool_pass - delta)
+	cool_fend = maxf(0.0, cool_fend - delta)
+	cool_kick = maxf(0.0, cool_kick - delta)
 	if tackled > 0.0:
 		tackled -= delta
 		velocity.x = 0.0
@@ -169,7 +182,6 @@ func _physics_process(delta: float) -> void:
 
 	var hs := Vector2(velocity.x, velocity.z).length()
 	if hs > 0.4:
-		# facing suavizado: evita que el balón/la vista tiemblen
 		facing = facing.lerp(Vector3(velocity.x, 0.0, velocity.z).normalized(),
 			delta * 10.0).normalized()
 	_update_visual(delta, hs)
@@ -203,11 +215,12 @@ func _desired_velocity() -> Vector3:
 				_do_pass()
 			if Input.is_action_just_pressed("kick"):
 				_do_kick()
+			if Input.is_action_just_pressed("fend") and cool_fend <= 0.0:
+				_do_fend()
 		return d * sp
 	return _ai_velocity()
 
 
-# ─── IA ─────────────────────────────────────────────────────────────────────
 func _ai_velocity() -> Vector3:
 	var b := game.ball
 	if game.phase == RugbyGame.Phase.BREAKDOWN:
@@ -289,6 +302,19 @@ func _carrier_ai() -> Vector3:
 			if dist < nearest_d:
 				nearest_d = dist
 				nearest_rel = rel
+
+	if nearest_d < 1.9 and cool_pass <= 0.0:
+		var offload := game.find_pass_target(self, true)
+		if offload != null and game.rng.randf() < 0.6:
+			game.ball.throw_to(offload, self)
+			cool_pass = 1.4
+			return Vector3.ZERO
+
+	if cool_kick <= 0.0 and global_position.z * d < -28.0 and game.rng.randf() < 0.02:
+		cool_kick = 4.0
+		var kdir := Vector3(-global_position.x * 0.012, 0.0, d).normalized()
+		game.ball.kicked(self, kdir)
+		return Vector3.ZERO
 
 	if nearest_d < 2.8 and cool_pass <= 0.0:
 		var target := game.find_pass_target(self, true)
@@ -381,7 +407,19 @@ func _do_kick() -> void:
 	game.ball.kicked(self, dir)
 
 
-# ─── Visual (animación de carrera procedural) ───────────────────────────────
+func _do_fend() -> void:
+	cool_fend = 3.0
+	for p in game.players:
+		if p.team == team or p.tackled > 0.0:
+			continue
+		var rel := p.global_position - global_position
+		rel.y = 0.0
+		if rel.length() < 2.3 and rel.normalized().dot(facing) > 0.25:
+			p.tackled = 1.1
+			game.ui.flash_hint("¡FEND!")
+			return
+
+
 func _update_visual(delta: float, h_speed: float) -> void:
 	bob_t += delta * (5.0 + h_speed * 0.9)
 	var run := clampf(h_speed / SPRINT_SPEED, 0.0, 1.0)
@@ -401,7 +439,6 @@ func _update_visual(delta: float, h_speed: float) -> void:
 	leg_r.rotation.x = -swing
 	arm_l.rotation.x = -swing * 0.7
 	arm_r.rotation.x = swing * 0.7
-	# cuando tiene el balón, brazos hacia adelante como sosteniéndolo
 	if game != null and game.ball != null and game.ball.carrier == self:
 		arm_l.rotation.x = lerpf(arm_l.rotation.x, -1.1, delta * 10.0)
 		arm_r.rotation.x = lerpf(arm_r.rotation.x, -1.1, delta * 10.0)

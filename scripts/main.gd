@@ -19,6 +19,14 @@ var controlled: RugbyPlayer = null
 var cam: RugbyCam
 var ui: RugbyUI
 var menu: RugbyMenu
+var referee: RugbyReferee
+
+# modos de juego: "friendly" | "tournament" | "practice"
+var mode := "friendly"
+var tour_fixture: Array[int] = []
+var tour_pos := 0
+var tour_wins := 0
+var tour_losses := 0
 
 var home_idx := 0                  # clubes elegidos en el menú
 var away_idx := 1
@@ -54,6 +62,7 @@ var conv_power_dir := 1.0
 var conv_prev_z := 0.0
 var conv_t := 0.0
 var conv_done_flag := false
+var conv_pts := 2                     # 2 conversión · 3 penal a los palos
 
 
 func _ready() -> void:
@@ -89,6 +98,7 @@ func _register_input() -> void:
 	_add_key_action("sprint", [KEY_SHIFT])
 	_add_key_action("pass", [KEY_SPACE])
 	_add_key_action("kick", [KEY_K])
+	_add_key_action("fend", [KEY_J])
 	_add_key_action("confirm", [KEY_ENTER, KEY_KP_ENTER])
 	_add_key_action("restart", [KEY_R])
 	_add_key_action("menu", [KEY_M])
@@ -121,7 +131,9 @@ func _spawn_players() -> void:
 	var ap: Color = clubs[away_idx]["primary"]
 	var clash := Vector3(hp.r - ap.r, hp.g - ap.g, hp.b - ap.b).length() < 0.45
 	for team in 2:
-		var club: Dictionary = clubs[home_idx if team == 0 else away_idx]
+		var club_idx: int = home_idx if team == 0 else away_idx
+		var club: Dictionary = clubs[club_idx]
+		var use_alt := team == 1 and clash
 		for i in TEAM_SIZE:
 			var p := RugbyPlayer.new()
 			p.game = self
@@ -131,22 +143,49 @@ func _spawn_players() -> void:
 			p.col_primary = club["primary"]
 			p.col_secondary = club["secondary"]
 			p.col_shorts = club["shorts"]
-			p.alt_kit = team == 1 and clash
+			p.alt_kit = use_alt
+			p.jersey_tex = RugbyTeams.jersey_texture(club_idx, use_alt)
+			p.jersey_tex_alt = p.jersey_tex
 			add_child(p)
 			players.append(p)
+	# árbitro + jueces de touch
+	if referee == null:
+		referee = RugbyReferee.new()
+		referee.game = self
+		add_child(referee)
+		referee.build_match()
+	referee.global_position = Vector3(4.0, 0.0, -8.0)
 
 
-func start_match(home: int, away: int) -> void:
+func start_match(home: int, away: int, m := "friendly") -> void:
+	mode = m
 	home_idx = home
-	away_idx = away
 	ui.visible = true
 	score = [0, 0]
 	half = 1
 	clock = 0.0
 	attack_dir = [1, -1]
 	first_kicker = 1   # el equipo del jugador recibe el saque inicial
+	if mode == "tournament":
+		if tour_fixture.is_empty():
+			# fixture del torneo: del rival más débil al más fuerte
+			var rest: Array[int] = []
+			for i in RugbyTeams.CLUBS.size():
+				if i != home:
+					rest.append(i)
+			rest.sort_custom(func(a, b):
+				return RugbyTeams.CLUBS[a]["rating"] < RugbyTeams.CLUBS[b]["rating"])
+			tour_fixture = rest
+			tour_pos = 0
+			tour_wins = 0
+			tour_losses = 0
+		away = tour_fixture[tour_pos]
+	away_idx = away
 	_spawn_players()
 	reset_for_kickoff(first_kicker)
+	if mode == "tournament":
+		ui.show_message("TORNEO URT · Fecha %d/%d · %s vs %s" %
+			[tour_pos + 1, tour_fixture.size(), _club_name(0), _club_name(1)], 3.0)
 
 
 func return_to_menu() -> void:
@@ -161,6 +200,7 @@ func return_to_menu() -> void:
 	ui.conv_hide()
 	ui.visible = false
 	phase = Phase.MENU
+	tour_fixture.clear()
 	menu.start()
 
 
@@ -229,11 +269,15 @@ func _process(delta: float) -> void:
 		ui.set_paused(get_tree().paused)
 	if get_tree().paused:
 		return
-	if Input.is_action_just_pressed("menu") and phase == Phase.END:
+	if Input.is_action_just_pressed("menu") \
+			and (phase == Phase.END or mode == "practice"):
 		return_to_menu()
 		return
 	if Input.is_action_just_pressed("restart") and phase == Phase.END:
-		start_match(home_idx, away_idx)
+		if mode == "tournament":
+			_tour_next()
+		else:
+			start_match(home_idx, away_idx, mode)
 		return
 
 	match phase:
@@ -261,7 +305,13 @@ func _process(delta: float) -> void:
 				_resolve_lineout()
 		Phase.PENALTY:
 			phase_t -= delta
-			if phase_t <= 0.0:
+			if pending_team == 0:
+				# el jugador decide: tap rápido (Espacio) o a los palos (K)
+				if _pen_in_range() and Input.is_action_just_pressed("kick"):
+					_setup_penalty_goal()
+				elif Input.is_action_just_pressed("pass") or phase_t <= 0.0:
+					_resolve_penalty()
+			elif phase_t <= 0.0:
 				_resolve_penalty()
 		Phase.DROPOUT:
 			phase_t -= delta
@@ -286,7 +336,7 @@ func _process(delta: float) -> void:
 
 
 func _check_clock() -> void:
-	if clock < HALF_LEN:
+	if clock < HALF_LEN or mode == "practice":
 		return
 	if half == 1:
 		half = 2
@@ -297,8 +347,18 @@ func _check_clock() -> void:
 		ui.show_message("¡Entretiempo! Cambian de campo", 2.8)
 	else:
 		phase = Phase.END
-		ui.show_message("FINAL · %s %d — %d %s · R revancha · M menú" %
-			[_club_name(0), score[0], score[1], _club_name(1)], 999.0)
+		if mode == "tournament":
+			if score[0] > score[1]:
+				tour_wins += 1
+			else:
+				tour_losses += 1
+			ui.show_message(
+				"FINAL · %s %d — %d %s · Torneo %dG-%dP · R fecha siguiente · M menú"
+				% [_club_name(0), score[0], score[1], _club_name(1),
+				tour_wins, tour_losses], 999.0)
+		else:
+			ui.show_message("FINAL · %s %d — %d %s · R revancha · M menú" %
+				[_club_name(0), score[0], score[1], _club_name(1)], 999.0)
 
 
 func _check_boundaries() -> void:
@@ -344,12 +404,24 @@ func _on_try(team: int) -> void:
 	ui.show_message("¡¡¡TRY de %s!!! +5" % _club_name(team), 2.2)
 
 
-# ─── Conversión estilo Rugby 25 ─────────────────────────────────────────────
+# ─── Patada a los palos estilo Rugby 25 (conversión +2 · penal +3) ──────────
 func _setup_conversion() -> void:
-	conv_team = last_scoring_team
-	conv_dir = int(attack_dir[conv_team])
 	var kx := clampf(conv_spot_x, -30.0, 30.0)
-	conv_kick_pos = Vector3(kx, 0.0, conv_dir * (TRY_Z - 14.0))
+	var d := int(attack_dir[last_scoring_team])
+	_setup_kick_at_goal(2, last_scoring_team,
+		Vector3(kx, 0.0, d * (TRY_Z - 14.0)))
+
+
+func _setup_penalty_goal() -> void:
+	_setup_kick_at_goal(3, pending_team, pending_spot)
+
+
+func _setup_kick_at_goal(pts: int, team: int, spot: Vector3) -> void:
+	conv_pts = pts
+	conv_team = team
+	conv_dir = int(attack_dir[conv_team])
+	conv_spot_x = spot.x
+	conv_kick_pos = spot
 	# ubicar al pateador (apertura idx 9 o el más cercano disponible)
 	var kicker := players[9 + conv_team * TEAM_SIZE]
 	if kicker.tackled > 0.0:
@@ -409,10 +481,14 @@ func _update_conversion(delta: float) -> void:
 		ConvState.WAIT_AI:
 			conv_t -= delta
 			if conv_t <= 0.0:
-				var prob := clampf(0.92 - absf(conv_spot_x) / 30.0 * 0.55, 0.3, 0.92)
+				var hdist := Vector2(conv_spot_x,
+					conv_dir * TRY_Z - conv_kick_pos.z).length()
+				var prob := clampf(
+					(0.92 - absf(conv_spot_x) / 30.0 * 0.55) * (1.15 - hdist / 55.0),
+					0.15, 0.92)
 				if rng.randf() < prob:
 					conv_aim = rng.randf_range(-0.14, 0.14)
-					conv_power = rng.randf_range(0.6, 0.9)
+					conv_power = clampf(hdist / 48.0, 0.45, 0.92) + rng.randf_range(0.0, 0.08)
 				else:
 					if rng.randf() < 0.6:
 						conv_aim = signf(rng.randf() - 0.5) * rng.randf_range(0.45, 0.85)
@@ -429,10 +505,12 @@ func _update_conversion(delta: float) -> void:
 			if not conv_done_flag and was < 0.0 and now >= 0.0:
 				conv_done_flag = true
 				if absf(ball.global_position.x) <= 2.8 and ball.global_position.y >= 3.0:
-					score[conv_team] += 2
-					ui.show_message("¡CONVERSIÓN! +2 para %s" % _club_name(conv_team), 2.2)
+					score[conv_team] += conv_pts
+					ui.show_message("¡%s! +%d para %s" %
+						["CONVERSIÓN" if conv_pts == 2 else "PENAL", conv_pts,
+						_club_name(conv_team)], 2.2)
 				else:
-					ui.show_message("¡Falló la conversión!", 2.0)
+					ui.show_message("¡Falló la patada!", 2.0)
 				conv_state = ConvState.DONE
 				conv_t = 1.3
 			elif ball.global_position.y < 0.25 and ball.linear_velocity.length() < 4.0:
@@ -586,15 +664,41 @@ func _event_penalty(team: int, spot: Vector3, msg: String) -> void:
 	ball.global_position = spot + Vector3(0, 1.0, 0)
 	phase = Phase.PENALTY
 	phase_t = 1.1
+	if team == 0:
+		phase_t = 7.0   # el jugador decide cómo jugarlo
+		if _pen_in_range():
+			ui.flash_hint("ESPACIO: tap rápido · K: a los palos (+3)")
+
+
+# distancia razonable para patear a los palos desde el penal
+func _pen_in_range() -> bool:
+	var d := float(attack_dir[pending_team])
+	var dist := TRY_Z - pending_spot.z * d
+	return dist < 44.0 and absf(pending_spot.x) < 28.0
 
 
 func _resolve_penalty() -> void:
+	# la IA decide a los palos si está en rango
+	if pending_team == 1 and _pen_in_range() and rng.randf() < 0.45:
+		_setup_penalty_goal()
+		return
 	var p := _nearest(pending_team, pending_spot, null, 999.0)
 	if p != null:
 		ball.set_carrier(p)
 		p.hold_pos = pending_spot
 	ui.flash_hint("¡Penal jugado rápido!")
 	phase = Phase.PLAY
+
+
+func _tour_next() -> void:
+	tour_pos += 1
+	if tour_pos >= tour_fixture.size():
+		var res := "¡TORNEO TERMINADO! %s: %d ganados · %d perdidos" % [
+			_club_name(0), tour_wins, tour_losses]
+		return_to_menu()
+		menu.flash_result(res)
+		return
+	start_match(home_idx, tour_fixture[tour_pos], "tournament")
 
 
 func _event_dropout(team: int, msg: String) -> void:
