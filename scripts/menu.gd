@@ -39,8 +39,6 @@ var preview_lbl: Label
 var right_vb: VBoxContainer
 var nav_desc: Label
 var pulse_t := 0.0
-var sfx_tick: AudioStreamPlayer
-var sfx_confirm: AudioStreamPlayer
 
 
 const EN := {
@@ -215,16 +213,7 @@ func _ready() -> void:
 	layer = 30
 	process_mode = Node.PROCESS_MODE_ALWAYS
 
-	sfx_tick = AudioStreamPlayer.new()
-	if FileAccess.file_exists("res://assets/tick.wav"):
-		sfx_tick.stream = load("res://assets/tick.wav")
-		sfx_tick.volume_db = -14.0
-	add_child(sfx_tick)
-	sfx_confirm = AudioStreamPlayer.new()
-	if FileAccess.file_exists("res://assets/confirm.wav"):
-		sfx_confirm.stream = load("res://assets/confirm.wav")
-		sfx_confirm.volume_db = -10.0
-	add_child(sfx_confirm)
+
 
 	# fondo degradado
 	var grad := Gradient.new()
@@ -538,27 +527,9 @@ func _ready() -> void:
 	hint_lbl.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	bar.add_child(hint_lbl)
 
-	_wire_sounds()
 
 
-# tick al enfocar, confirm al elegir
-func _wire_sounds() -> void:
-	for b in nav_btns + buttons + opt_btns:
-		b.focus_entered.connect(_play_tick)
-	for b in nav_btns + buttons:
-		b.pressed.connect(_play_confirm)
-	for b in opt_btns:
-		b.pressed.connect(_play_tick)
 
-
-func _play_tick() -> void:
-	if sfx_tick.stream != null:
-		sfx_tick.play()
-
-
-func _play_confirm() -> void:
-	if sfx_confirm.stream != null:
-		sfx_confirm.play()
 
 
 func start() -> void:

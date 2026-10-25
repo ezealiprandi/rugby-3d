@@ -127,6 +127,12 @@ func _build_visual() -> void:
 	if jtex != null:
 		jersey_mat.albedo_texture = jtex
 		jersey_mat.albedo_color = Color(1, 1, 1)
+		# grano de tela real: capa de detalle multiplicada sobre la camiseta
+		jersey_mat.detail_enabled = true
+		jersey_mat.detail_albedo = RugbyTeams.fabric_texture()
+		jersey_mat.detail_blend_mode = BaseMaterial3D.BLEND_MODE_MUL
+		jersey_mat.detail_uv_layer = BaseMaterial3D.DETAIL_UV_1
+		jersey_mat.uv1_scale = Vector3(6.0, 6.0, 6.0)
 	var trim_mat := _mat(trim)
 	var shorts_mat := _mat(col_shorts)
 
@@ -749,6 +755,8 @@ func _start_dive(dir: Vector3) -> void:
 	dive_dir = dive_dir.normalized()
 	dive_t = 0.45
 	dive_cd = 1.7
+	if game != null and game.sfx_slide.stream != null:
+		game.sfx_slide.play()
 	facing = dive_dir
 
 
@@ -877,6 +885,7 @@ func _do_drop_goal() -> void:
 	v.y = (4.2 + 4.9 * t * t) / t
 	game.ball.linear_velocity = v
 	game.ball.angular_velocity = Vector3(-d, 0, 0) * 8.0
+	game._kick_sfx()
 	game.ball.release_guard = 0.4
 	game.ball.last_touch_team = team
 	game.drop_goal_team = team

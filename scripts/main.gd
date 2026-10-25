@@ -134,6 +134,11 @@ var tackles_n := [0, 0]
 var sfx_whistle: AudioStreamPlayer
 var sfx_crowd: AudioStreamPlayer
 var sfx_cheer: AudioStreamPlayer
+var sfx_rain: AudioStreamPlayer
+var sfx_steps: AudioStreamPlayer
+var sfx_tackle: AudioStreamPlayer
+var sfx_slide: AudioStreamPlayer
+var sfx_kick: AudioStreamPlayer
 
 
 func _ready() -> void:
@@ -155,6 +160,11 @@ func _ready() -> void:
 	sfx_whistle = _mk_audio("res://assets/whistle.wav", -6.0)
 	sfx_crowd = _mk_audio("res://assets/crowd.wav", -16.0)
 	sfx_cheer = _mk_audio("res://assets/cheer.wav", -4.0)
+	sfx_rain = _mk_audio("res://assets/rain.wav", -18.0)
+	sfx_steps = _mk_audio("res://assets/steps.wav", -14.0)
+	sfx_tackle = _mk_audio("res://assets/tackle.wav", -8.0)
+	sfx_slide = _mk_audio("res://assets/slide.wav", -9.0)
+	sfx_kick = _mk_audio("res://assets/kick.wav", -6.0)
 	ui.set_info("WASD mover · Shift sprint · Espacio pasar · K patada · Esc pausa")
 	ui.visible = false
 	_load_options()
@@ -273,6 +283,11 @@ func _mk_audio(path: String, db: float) -> AudioStreamPlayer:
 		a.stream = load(path)
 	add_child(a)
 	return a
+
+
+func _kick_sfx() -> void:
+	if sfx_kick.stream != null:
+		sfx_kick.play()
 
 
 func _whistle() -> void:
@@ -416,6 +431,10 @@ func start_match(home: int, away: int, m := "friendly") -> void:
 		_: tod_msg = "Atardecer en Tucumán"
 	if weather == "rain":
 		ui.show_message("🌧 Lluvia en Tucumán — la pelota resbala", 3.0)
+		if sfx_rain.stream != null and not sfx_rain.playing:
+			sfx_rain.play()
+	elif sfx_rain.playing:
+		sfx_rain.stop()
 	else:
 		ui.show_message(tod_msg, 2.2)
 	if mode == "tournament":
@@ -498,6 +517,7 @@ func _do_kickoff() -> void:
 	ball.angular_velocity = Vector3(kd, 0.0, 0.0) * 10.0
 	ball.release_guard = 0.35
 	ball.last_touch_team = kick_team
+	_kick_sfx()
 	phase = Phase.PLAY
 	ui.show_message("¡A jugar!", 1.4)
 
@@ -539,6 +559,12 @@ func _process(delta: float) -> void:
 			if settle_t > 0.0:
 				settle_t -= delta
 			_record_frame()
+			if controlled != null and controlled.tackled <= 0.0 					and controlled.velocity.length() > 2.5:
+				if sfx_steps.stream != null and not sfx_steps.playing:
+					sfx_steps.play()
+				sfx_steps.pitch_scale = 					1.15 if controlled.velocity.length() > 8.5 else 0.9
+			elif sfx_steps.playing:
+				sfx_steps.stop()
 			var poss_team: int = ball.carrier.team if ball.carrier != null \
 				else ball.last_touch_team
 			if poss_team >= 0:
@@ -846,6 +872,8 @@ func _on_try(team: int) -> void:
 	celebrating = scorer
 	if scorer != null:
 		scorer.try_dive_t = 1.1
+		if sfx_slide.stream != null:
+			sfx_slide.play()
 	if replay_buf.size() > 30:
 		phase = Phase.REPLAY
 		replay_i = 0
@@ -1031,6 +1059,7 @@ func _conv_execute() -> void:
 	var dir := Vector3(sin(a), 0.0, cos(a) * conv_dir).normalized()
 	var sp := 11.0 + conv_power * 16.0
 	ball.linear_velocity = dir * sp + Vector3(0, 7.5 + conv_power * 5.0, 0)
+	_kick_sfx()
 	ball.angular_velocity = Vector3(-conv_dir, 0, 0) * 12.0
 	ball.release_guard = 0.4
 	ball.last_touch_team = conv_team
@@ -1045,6 +1074,8 @@ func on_tackle(tackler: RugbyPlayer, carrier: RugbyPlayer) -> void:
 		return
 	tackles_n[tackler.team] += 1
 	tackler.stat_tackles += 1
+	if tackler.dive_t > 0.02 and sfx_slide.stream != null:
+		sfx_slide.play()
 	if tackler.dive_t > 0.02 and rng.randf() < 0.1:
 		tackler.tackled = 0.8
 		_event_penalty(carrier.team, carrier.global_position,
@@ -1052,6 +1083,8 @@ func on_tackle(tackler: RugbyPlayer, carrier: RugbyPlayer) -> void:
 		return
 	tackler.tackled = 1.2
 	carrier.tackled = 1.2
+	if sfx_tackle.stream != null:
+		sfx_tackle.play()
 	# ventana de offload: el placado puede soltar la pelota a un apoyo
 	offloader = carrier
 	offload_t = 0.5
@@ -1574,6 +1607,7 @@ func _pen_touch_kick() -> void:
 	var dir := Vector3(side, 0.0, float(attack_dir[pending_team]) * 0.7).normalized()
 	ball.linear_velocity = dir * 22.0 + Vector3(0.0, 7.5, 0.0)
 	ball.angular_velocity = Vector3(dir.z, 0.0, -dir.x) * 14.0
+	_kick_sfx()
 	ui.show_message("¡Patada al touch! Lineout para %s"
 		% _club_name(pending_team), 2.0)
 	phase = Phase.PLAY
@@ -1719,6 +1753,7 @@ func _resolve_dropout() -> void:
 	ball.angular_velocity = Vector3(d, 0, 0) * 10.0
 	ball.release_guard = 0.35
 	ball.last_touch_team = drop_team
+	_kick_sfx()
 	phase = Phase.PLAY
 
 
