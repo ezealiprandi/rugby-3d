@@ -15,6 +15,7 @@ var floodlights: Array = []          # SpotLight3D de cada torre (noche)
 var crowd_mm: MultiMesh = null       # hinchada (para teñir de colores del club)
 var crowd_palette: Array = []
 var crowd_pos: Array[Vector3] = []   # posiciones base para la ola
+var flag_mats: Array = []            # banderas (se tiñen por partido)
 var wave_t := 0.0
 var wave_amp := 0.0                  # sube a 1.0 en un try
 
@@ -40,6 +41,7 @@ func _build() -> void:
 	_build_surroundings()
 	_build_floodlights()
 	_build_crowd()
+	_build_flags()
 	_build_photographers()
 
 
@@ -532,6 +534,44 @@ func _build_crowd() -> void:
 		mm.set_instance_color(i, palette[rng.randi() % palette.size()])
 
 
+# banderas en lo alto de las gradas; se tiñen con los clubes del partido
+func _build_flags() -> void:
+	var spots: Array[Vector3] = []
+	for i in 8:   # tribuna principal (+X), lo alto
+		spots.append(Vector3(44.5, 11.5, -52.0 + i * 15.0))
+	for s in [-1.0, 1.0]:   # fondos
+		for i in 3:
+			spots.append(Vector3(-30.0 + i * 30.0, 9.6, s * 81.0))
+	for pos in spots:
+		var pole := MeshInstance3D.new()
+		var pm := CylinderMesh.new()
+		pm.top_radius = 0.03
+		pm.bottom_radius = 0.03
+		pm.height = 2.6
+		pole.mesh = pm
+		pole.position = pos
+		pole.material_override = _mat(Color(0.75, 0.75, 0.78))
+		add_child(pole)
+		var fm := StandardMaterial3D.new()
+		fm.albedo_color = Color(0.85, 0.85, 0.85)
+		fm.roughness = 0.8
+		fm.cull_mode = BaseMaterial3D.CULL_DISABLED
+		flag_mats.append(fm)
+		var flag := MeshInstance3D.new()
+		var q := QuadMesh.new()
+		q.size = Vector2(1.7, 1.05)
+		flag.mesh = q
+		flag.material_override = fm
+		# cuelga del asta hacia la cancha
+		if absf(pos.x) > 40.0:
+			flag.rotation.y = -PI / 2.0
+			flag.position = pos + Vector3(0.0, 0.9, 0.9)
+		else:
+			flag.rotation.y = PI if pos.z < 0.0 else 0.0
+			flag.position = pos + Vector3(0.9, 0.9, 0.0)
+		add_child(flag)
+
+
 # ola permanente sutil; crowd_surge() la dispara en los tries
 func _process(delta: float) -> void:
 	if crowd_mm == null or crowd_pos.is_empty():
@@ -553,6 +593,8 @@ func crowd_surge() -> void:
 
 # Tiñe parte de la hinchada con los colores de los clubes que juegan.
 func tint_crowd(home_c: Color, away_c: Color) -> void:
+	for i in flag_mats.size():
+		flag_mats[i].albedo_color = home_c if i % 2 == 0 else away_c
 	if crowd_mm == null:
 		return
 	var rng := RandomNumberGenerator.new()

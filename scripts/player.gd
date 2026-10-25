@@ -146,6 +146,22 @@ func _build_visual() -> void:
 
 	_capsule(visual, 0.14, 0.3, 1.88, skin_mat)
 
+	# variedad física: altura, pelo y barba (determinístico por casaca)
+	var hvar := 0.94 + fmod(float(index * 5 + team * 2), 12.0) / 100.0 * 6.0
+	if is_forward():
+		hvar += 0.04
+	visual.scale.y = hvar
+	var hair_cols := [Color(0.08, 0.06, 0.05), Color(0.2, 0.12, 0.06),
+		Color(0.38, 0.24, 0.1), Color(0.7, 0.55, 0.25), Color(0.5, 0.2, 0.08)]
+	var hair_c: Color = hair_cols[(index + team) % 5]
+	var hair_sel := (index * 3 + team) % 10
+	if hair_sel < 8 and index >= 3:      # ~20% pelados; 1ra línea usa casco
+		_box(visual, Vector3(0.24, 0.1, 0.25), Vector3(0, 1.99, -0.02),
+			_mat(hair_c))
+	if hair_sel >= 6 and index >= 3:     # barba en algunos
+		_box(visual, Vector3(0.15, 0.07, 0.06), Vector3(0, 1.79, 0.11),
+			_mat(hair_c))
+
 	# casco de scrum en la primera línea
 	if index < 3:
 		var cap := MeshInstance3D.new()
