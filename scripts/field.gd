@@ -26,10 +26,29 @@ static func build(parent: Node3D) -> RugbyField:
 	return f
 
 
-func _mat(c: Color, rough := 0.95) -> StandardMaterial3D:
+static var _noise_tex: Texture2D = null
+static func _noise() -> Texture2D:
+	if _noise_tex == null:
+		var n := FastNoiseLite.new()
+		n.noise_type = FastNoiseLite.TYPE_SIMPLEX
+		n.frequency = 0.1
+		var nt := NoiseTexture2D.new()
+		nt.width = 256
+		nt.height = 256
+		nt.seamless = true
+		nt.noise = n
+		_noise_tex = nt
+	return _noise_tex
+
+
+# tex=true multiplica por un ruido gris (cemento/techo real) — se compensa el color
+func _mat(c: Color, rough := 0.95, tex := false) -> StandardMaterial3D:
 	var m := StandardMaterial3D.new()
-	m.albedo_color = c
+	m.albedo_color = c * 1.7 if tex else c
 	m.roughness = rough
+	if tex:
+		m.albedo_texture = RugbyField._noise()
+		m.uv1_scale = Vector3(5.0, 5.0, 5.0)
 	return m
 
 
@@ -148,15 +167,25 @@ func _build_ground() -> void:
 	grass_shader.code = """
 shader_type spatial;
 uniform vec4 color : source_color;
+float hash(vec2 p) {
+	return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453);
+}
+float vnoise(vec2 p) {
+	vec2 i = floor(p);
+	vec2 u = fract(p);
+	u = u * u * (3.0 - 2.0 * u);
+	return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), u.x),
+		mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), u.x), u.y);
+}
 void fragment() {
-	vec2 cell = floor(VERTEX.xz * 2.5);
-	float n = fract(sin(dot(cell, vec2(12.9898, 78.233))) * 43758.5453);
-	float grain = fract(sin(dot(floor(VERTEX.xz * 30.0),
-		vec2(26.6517, 38.1254))) * 29731.13);
-	float mow = step(0.5, fract(VERTEX.x * 0.35)) * 0.05;
-	ALBEDO = color.rgb * (0.80 + n * 0.20 + grain * 0.10 + mow);
-	ROUGHNESS = 0.9;
-	SPECULAR = 0.2;
+	float patch = vnoise(VERTEX.xz * 0.22);          // manchones grandes
+	float mid = vnoise(VERTEX.xz * 1.7);             // variación media
+	float grain = vnoise(VERTEX.xz * 14.0);          // textura de pasto fino
+	float mow = step(0.5, fract(VERTEX.x * 0.35)) * 0.05;   // líneas de corte
+	ALBEDO = color.rgb * (0.72 + patch * 0.18 + mid * 0.12
+		+ grain * 0.10 + mow);
+	ROUGHNESS = 0.92;
+	SPECULAR = 0.25;
 }
 """
 	var green_a := ShaderMaterial.new()
@@ -315,10 +344,24 @@ func _add_box(pos: Vector3, size: Vector3, mat: Material) -> MeshInstance3D:
 	return mi
 
 
+func _ad_mat(c1: Color, c2: Color) -> StandardMaterial3D:
+	var img := Image.create(128, 32, false, Image.FORMAT_RGBA8)
+	for y in 32:
+		for x in 128:
+			img.set_pixel(x, y, c1 if int((x + y * 2) / 16) % 2 == 0 else c2)
+	var m := StandardMaterial3D.new()
+	m.albedo_texture = ImageTexture.create_from_image(img)
+	m.roughness = 0.7
+	return m
+
+
 func _build_surroundings() -> void:
 	# vallas publicitarias alternadas alrededor de la cancha
-	var ads := [_mat(Color(0.92, 0.92, 0.95), 0.7), _mat(Color(0.12, 0.2, 0.5), 0.7),
-		_mat(Color(0.85, 0.1, 0.1), 0.7), _mat(Color(0.95, 0.7, 0.1), 0.7)]
+	var ads := [
+		_ad_mat(Color(0.92, 0.92, 0.95), Color(0.55, 0.55, 0.6)),
+		_ad_mat(Color(0.12, 0.2, 0.5), Color(0.9, 0.9, 0.95)),
+		_ad_mat(Color(0.85, 0.1, 0.1), Color(0.95, 0.95, 0.9)),
+		_ad_mat(Color(0.95, 0.7, 0.1), Color(0.15, 0.15, 0.15))]
 	var ai := 0
 	for s in [-1.0, 1.0]:
 		var x := -32.0
@@ -333,8 +376,8 @@ func _build_surroundings() -> void:
 			ai += 1
 
 	# tribunas con gradas escalonadas
-	var concrete := _mat(Color(0.32, 0.33, 0.36), 0.95)
-	var roof := _mat(Color(0.2, 0.22, 0.28), 0.8)
+	var concrete := _mat(Color(0.32, 0.33, 0.36), 0.95, true)
+	var roof := _mat(Color(0.2, 0.22, 0.28), 0.8, true)
 	# tribuna principal (lado +X, opuesto a la cámara) con techo
 	for i in 6:
 		_add_box(Vector3(46.0 + i * 3.0, 1.2 + i * 1.6, 0),
@@ -351,7 +394,7 @@ func _build_surroundings() -> void:
 	_add_box(Vector3(-46.0, 1.5, 0.0), Vector3(3.0, 3.0, 130.0), concrete)
 
 	# bancos de suplentes (lado de la cámara, bajos)
-	var bench := _mat(Color(0.7, 0.7, 0.72), 0.8)
+	var bench := _mat(Color(0.7, 0.7, 0.72), 0.8, true)
 	for s in [-1.0, 1.0]:
 		_add_box(Vector3(-40.0, 0.5, s * 18.0), Vector3(2.0, 1.0, 8.0), bench)
 		_add_box(Vector3(-40.8, 1.1, s * 18.0), Vector3(0.4, 1.2, 8.0), bench)

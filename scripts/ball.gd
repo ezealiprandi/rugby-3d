@@ -36,12 +36,14 @@ func _ready() -> void:
 	mi.mesh = sm
 	mi.rotation.x = PI / 2.0
 	var mat := StandardMaterial3D.new()
-	mat.albedo_color = Color(0.58, 0.34, 0.16)
-	mat.roughness = 0.7
+	mat.albedo_texture = _leather_tex()
+	mat.roughness = 0.62
+	mat.metallic_specular = 0.4
 	mi.material_override = mat
 	add_child(mi)
 
 	# costura alrededor de la panza (toro oscuro) + aro claro de panel
+	# (la textura de cuero con paneles y cordones la arma _leather_tex)
 	var seam := MeshInstance3D.new()
 	var tm := TorusMesh.new()
 	tm.inner_radius = 0.14
@@ -144,3 +146,27 @@ func kicked(kicker: RugbyPlayer, dir: Vector3) -> void:
 	global_position = kicker.carry_point()
 	linear_velocity = dir * 21.0 + Vector3(0, 8.5, 0)
 	angular_velocity = Vector3(dir.z, 0.0, -dir.x) * 14.0
+
+
+# cuero con grano, costuras oscuras en los paneles y cordones blancos
+static func _leather_tex() -> Texture2D:
+	var img := Image.create(256, 128, false, Image.FORMAT_RGBA8)
+	var base := Color(0.58, 0.34, 0.16)
+	img.fill(base)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 7
+	for y in 128:
+		for x in 256:
+			var n := rng.randf_range(-0.045, 0.045)
+			var c := img.get_pixel(x, y)
+			img.set_pixel(x, y, Color(c.r + n, c.g + n, c.b + n))
+	var seam := Color(0.3, 0.16, 0.07)
+	for y in 128:                      # costuras de los 4 paneles
+		for sx in [64, 128, 192]:
+			img.set_pixel(sx, y, seam)
+			img.set_pixel(sx + 1, y, seam)
+	for y in range(38, 90, 9):         # cordones blancos sobre una costura
+		for dx in range(-4, 5):
+			img.set_pixel(128 + dx, y, Color(0.93, 0.9, 0.85))
+			img.set_pixel(128 + dx, y + 1, Color(0.93, 0.9, 0.85))
+	return ImageTexture.create_from_image(img)

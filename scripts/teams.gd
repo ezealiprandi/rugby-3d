@@ -143,9 +143,31 @@ static func jersey_texture(idx: int, alt := false) -> Texture2D:
 			img.fill(cols[0])
 			_fill_rect(img, 0, 0, 96, 12, cols[1])      # cuello
 			_fill_rect(img, 0, 86, 96, 10, cols[1])    # bastilla
+	_detail_jersey(img, idx * 2 + int(alt), cols)
 	var tex := ImageTexture.create_from_image(img)
 	_tex_cache[key] = tex
 	return tex
+
+
+# tela con grano, sombreado vertical (más claro arriba) y cuello en V
+static func _detail_jersey(img: Image, seed_v: int, cols: Array) -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = seed_v * 7919 + 13
+	var collar: Color = (cols[1] if cols.size() > 1 else cols[0]).darkened(0.25)
+	for y in 96:
+		var shade := 1.08 - float(y) / 96.0 * 0.16   # caída de luz
+		for x in 96:
+			var c := img.get_pixel(x, y)
+			var n := rng.randf_range(-0.055, 0.055)
+			c = Color(c.r * (shade + n), c.g * (shade + n), c.b * (shade + n))
+			if y < 11 and absf(float(x) - 48.0) < float(11 - y) * 1.7:
+				c = collar          # escote en V
+			img.set_pixel(x, y, c)
+	# bastilla inferior un toque más oscura
+	for y in range(92, 96):
+		for x in 96:
+			var c := img.get_pixel(x, y).darkened(0.12)
+			img.set_pixel(x, y, c)
 
 
 static func _fill_row(img: Image, y: int, c: Color) -> void:
