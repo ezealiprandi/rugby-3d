@@ -11,6 +11,7 @@ const WHITE := Color(0.95, 0.95, 0.92)
 var env_node: WorldEnvironment
 var sun_node: DirectionalLight3D
 var rain: GPUParticles3D
+var floodlights: Array = []          # SpotLight3D de cada torre (noche)
 
 static func build(parent: Node3D) -> RugbyField:
 	var f := RugbyField.new()
@@ -34,6 +35,7 @@ func _build() -> void:
 	_build_surroundings()
 	_build_floodlights()
 	_build_crowd()
+	_build_photographers()
 
 
 func _build_env() -> void:
@@ -397,6 +399,84 @@ func _build_floodlights() -> void:
 				lamp.material_override = lamp_mat
 				lamp.position = base + Vector3(-1.5 + i * 1.5, 22.6, -sz * 0.7)
 				add_child(lamp)
+			# foco real para los partidos nocturnos
+			var spot := SpotLight3D.new()
+			spot.position = base + Vector3(0.0, 21.8, 0.0)
+			spot.spot_range = 150.0
+			spot.spot_angle = 42.0
+			spot.light_energy = 4.0
+			spot.light_color = Color(1.0, 0.96, 0.85)
+			spot.visible = false
+			add_child(spot)
+			spot.look_at(Vector3(0.0, 0.0, 0.0), Vector3.UP)
+			floodlights.append(spot)
+
+
+# momento del día: día, atardecer o noche (con focos encendidos)
+func set_daytime(mode: String) -> void:
+	if env_node == null or sun_node == null:
+		return
+	var psm := env_node.environment.sky.sky_material as ProceduralSkyMaterial
+	match mode:
+		"day":
+			sun_node.light_energy = 1.35
+			sun_node.light_color = Color(1.0, 0.98, 0.94)
+			sun_node.rotation_degrees = Vector3(-62.0, -20.0, 0.0)
+			if psm != null:
+				psm.sky_top_color = Color(0.28, 0.5, 0.85)
+				psm.sky_horizon_color = Color(0.72, 0.8, 0.9)
+				psm.ground_bottom_color = Color(0.25, 0.3, 0.3)
+			env_node.environment.ambient_light_energy = 0.9
+		"night":
+			sun_node.light_energy = 0.18
+			sun_node.light_color = Color(0.55, 0.65, 1.0)
+			if psm != null:
+				psm.sky_top_color = Color(0.01, 0.03, 0.1)
+				psm.sky_horizon_color = Color(0.06, 0.08, 0.16)
+				psm.ground_bottom_color = Color(0.01, 0.02, 0.04)
+			env_node.environment.ambient_light_energy = 0.28
+		_:  # "sunset": el look original
+			sun_node.light_energy = 1.1
+			sun_node.light_color = Color(1.0, 0.92, 0.8)
+			sun_node.rotation_degrees = Vector3(-52.0, -25.0, 0.0)
+			if psm != null:
+				psm.sky_top_color = Color(0.16, 0.3, 0.62)
+				psm.sky_horizon_color = Color(0.75, 0.62, 0.5)
+				psm.ground_bottom_color = Color(0.2, 0.22, 0.25)
+			env_node.environment.ambient_light_energy = 0.75
+	for s in floodlights:
+		s.visible = mode == "night"
+
+
+func _build_photographers() -> void:
+	var cam_mat := _mat(Color(0.08, 0.09, 0.12), 0.6)
+	var vest := Color(0.95, 0.75, 0.15)          # pechera de fotógrafo
+	var spots := [
+		Vector3(-39.0, 0.0, -66.0), Vector3(39.0, 0.0, 66.0),
+		Vector3(-39.0, 0.0, 66.0), Vector3(39.0, 0.0, -66.0)]
+	for sp in spots:
+		var h := Humanoid.make({
+			"bulk": 0.9, "skin": Color(0.8, 0.62, 0.45),
+			"jersey": vest, "trim": Color(0.1, 0.1, 0.1),
+			"shorts": Color(0.15, 0.15, 0.2), "jersey_tex": null,
+			"number": 0})
+		h.position = sp
+		h.scale = Vector3(0.8, 0.62, 0.8)       # arrodillado
+		add_child(h)
+		h.look_at(Vector3(0.0, 1.0, 0.0), Vector3.UP)
+		_add_box(sp + Vector3(0.0, 1.0, 0.0) +
+			Vector3(-signf(sp.x), 0.0, 0.0) * 0.5,
+			Vector3(0.35, 0.22, 0.5), cam_mat)
+	# camarógrafo parado en la mitad de la cancha
+	var cam_pos := Vector3(-42.0, 0.0, 0.0)
+	var h2 := Humanoid.make({
+		"bulk": 1.0, "skin": Color(0.75, 0.55, 0.4),
+		"jersey": Color(0.12, 0.12, 0.15), "trim": Color(0.9, 0.9, 0.9),
+		"shorts": Color(0.1, 0.1, 0.12), "jersey_tex": null, "number": 0})
+	h2.position = cam_pos
+	add_child(h2)
+	h2.look_at(Vector3(0.0, 1.5, 0.0), Vector3.UP)
+	_add_box(cam_pos + Vector3(1.0, 1.6, 0.0), Vector3(0.5, 0.35, 0.7), cam_mat)
 
 
 func _build_crowd() -> void:

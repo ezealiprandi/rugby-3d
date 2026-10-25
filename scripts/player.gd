@@ -21,7 +21,8 @@ var step_t := 0.0                  # burst del sidestep
 var step_dir := Vector3(0, 0, 1)
 var step_cd := 0.0
 var surge_t := 0.0
-var stamina := 1.0                 # energía: el sprint cansa                 # pick and go: carga automática hacia adelante
+var stamina := 1.0                 # energía: el sprint cansa
+var kick_anim_t := 0.0              # animación de patada del pateador
 var facing := Vector3(0, 0, 1)
 var hold_pos := Vector3.ZERO
 var col_primary := Color(0.2, 0.4, 0.9)
@@ -197,6 +198,7 @@ func _physics_process(delta: float) -> void:
 	cool_fend = maxf(0.0, cool_fend - delta)
 	cool_kick = maxf(0.0, cool_kick - delta)
 	dive_cd = maxf(0.0, dive_cd - delta)
+	kick_anim_t = maxf(0.0, kick_anim_t - delta)
 	step_cd = maxf(0.0, step_cd - delta)
 	if tackled > 0.0:
 		tackled -= delta
@@ -735,6 +737,15 @@ func _do_fend() -> void:
 func _update_visual(delta: float, h_speed: float) -> void:
 	bob_t += delta * (5.0 + h_speed * 0.9)
 	var run := clampf(h_speed / SPRINT_SPEED, 0.0, 1.0)
+	if kick_anim_t > 0.0:
+		var ks := 1.0 - kick_anim_t / 0.6      # 0→1 durante la patada
+		leg_r.rotation.x = lerpf(leg_r.rotation.x,
+			-1.5 if ks < 0.5 else 1.3, delta * 18.0)   # backswing → follow through
+		leg_l.rotation.x = lerpf(leg_l.rotation.x, 0.35, delta * 10.0)
+		arm_l.rotation.x = lerpf(arm_l.rotation.x, -0.9, delta * 10.0)
+		arm_r.rotation.x = lerpf(arm_r.rotation.x, 0.9, delta * 10.0)
+		visual.rotation.x = lerpf(visual.rotation.x, 0.18, delta * 10.0)
+		return
 	if dive_t > 0.0:
 		visual.rotation.x = lerpf(visual.rotation.x, -1.5, delta * 14.0)
 		visual.position.y = lerpf(visual.position.y, -0.45, delta * 14.0)

@@ -63,6 +63,8 @@ var conv_power_dir := 1.0
 var conv_prev_z := 0.0
 var conv_t := 0.0
 var conv_done_flag := false
+var conv_kicker: RugbyPlayer = null
+var confetti: GPUParticles3D = null
 var conv_pts := 2                     # 2 conversión · 3 penal a los palos
 
 # drop goal en juego abierto
@@ -253,7 +255,11 @@ func start_match(home: int, away: int, m := "friendly") -> void:
 	maul_team = -1
 	replay_buf.clear()
 	weather = "rain" if rng.randf() < 0.3 else "clear"
+	var tod_roll := rng.randf()
+	var tod := "day" if tod_roll < 0.4 else \
+		("sunset" if tod_roll < 0.75 else "night")
 	if field != null:
+		field.set_daytime(tod)
 		field.set_weather(weather == "rain")
 	first_kicker = 1   # el equipo del jugador recibe el saque inicial
 	if sfx_crowd.stream != null and not sfx_crowd.playing:
@@ -275,8 +281,15 @@ func start_match(home: int, away: int, m := "friendly") -> void:
 	away_idx = away
 	_spawn_players()
 	reset_for_kickoff(first_kicker)
+	var tod_msg := ""
+	match tod:
+		"day": tod_msg = "Tarde de sol en Tucumán"
+		"night": tod_msg = "¡Noche de rugby! Los focos prendidos"
+		_: tod_msg = "Atardecer en Tucumán"
 	if weather == "rain":
 		ui.show_message("🌧 Lluvia en Tucumán — la pelota resbala", 3.0)
+	else:
+		ui.show_message(tod_msg, 2.2)
 	if mode == "tournament":
 		ui.show_message("TORNEO URT · Fecha %d/%d · %s vs %s" %
 			[tour_pos + 1, tour_fixture.size(), _club_name(0), _club_name(1)], 3.0)
@@ -598,6 +611,8 @@ func _on_try(team: int) -> void:
 	_whistle()
 	if sfx_cheer.stream != null:
 		sfx_cheer.play()
+	_confetti(scorer.global_position,
+		RugbyTeams.CLUBS[home_idx if team == 0 else away_idx]["primary"])
 	if phase == Phase.REPLAY:
 		ui.show_message("¡¡¡TRY de %s!!! +5 · REPLAY" % _club_name(team), 2.6)
 	else:
@@ -627,6 +642,7 @@ func _setup_kick_at_goal(pts: int, team: int, spot: Vector3) -> void:
 	var kicker := players[9 + conv_team * TEAM_SIZE]
 	if kicker.tackled > 0.0:
 		kicker = _nearest(conv_team, conv_kick_pos, null, 999.0)
+	conv_kicker = kicker
 	kicker.global_position = conv_kick_pos - Vector3(0, 0, conv_dir * 2.0)
 	kicker.facing = Vector3(0, 0, conv_dir)
 	kicker.hold_pos = kicker.global_position
@@ -735,6 +751,8 @@ func _update_conversion(delta: float) -> void:
 
 func _conv_execute() -> void:
 	ui.conv_hide()
+	if conv_kicker != null:
+		conv_kicker.kick_anim_t = 0.6
 	ball.release()
 	ball.global_position = conv_kick_pos + Vector3(0, 0.3, 0)
 	var a := conv_aim * 0.5
@@ -771,6 +789,44 @@ func on_tackle(tackler: RugbyPlayer, carrier: RugbyPlayer) -> void:
 	phase = Phase.BREAKDOWN
 	phase_t = 1.15
 	ui.show_message("¡PLACAJE!", 1.0)
+
+
+func _confetti(pos: Vector3, club_col: Color) -> void:
+	if confetti == null:
+		confetti = GPUParticles3D.new()
+		confetti.amount = 280
+		confetti.lifetime = 2.6
+		confetti.one_shot = true
+		confetti.explosiveness = 0.85
+		confetti.visibility_aabb = AABB(Vector3(-40, -15, -40),
+			Vector3(80, 50, 80))
+		var pm := ParticleProcessMaterial.new()
+		pm.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
+		pm.emission_sphere_radius = 2.0
+		pm.direction = Vector3(0.0, 1.0, 0.0)
+		pm.spread = 55.0
+		pm.initial_velocity_min = 9.0
+		pm.initial_velocity_max = 15.0
+		pm.gravity = Vector3(0.0, -9.0, 0.0)
+		pm.damping_min = 1.2
+		pm.damping_max = 2.6
+		confetti.process_material = pm
+		var quad := QuadMesh.new()
+		quad.size = Vector2(0.16, 0.16)
+		var cm := StandardMaterial3D.new()
+		cm.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
+		quad.material = cm
+		confetti.draw_pass_1 = quad
+		add_child(confetti)
+	var grad := Gradient.new()
+	grad.set_color(0, Color(1.0, 0.84, 0.2))
+	grad.set_color(1, club_col)
+	grad.add_point(0.5, Color(0.95, 0.95, 0.95))
+	var gt := GradientTexture1D.new()
+	gt.gradient = grad
+	(confetti.process_material as ParticleProcessMaterial).color_ramp = gt
+	confetti.global_position = pos + Vector3(0.0, 2.0, 0.0)
+	confetti.restart()
 
 
 func _resolve_breakdown() -> void:
