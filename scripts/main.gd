@@ -85,6 +85,8 @@ var maul_team := -1
 var maul_dir := 1.0
 var pending_maul_team := -1   # se arma cuando el catcher agarra el lineout
 var jackal_pressed := false  # el jugador apretó F para competir en el ruck
+var offload_t := 0.0          # ventana para soltar la pelota al ser placado
+var offloader: RugbyPlayer = null  # el jugador apretó F para competir en el ruck
 
 # ventaja del árbitro
 var adv_t := -1.0
@@ -148,6 +150,7 @@ func _register_input() -> void:
 	_add_key_action("step", [KEY_X])
 	_add_key_action("crosskick", [KEY_Z])
 	_add_key_action("touchkick", [KEY_T])
+	_add_key_action("dummy", [KEY_B])
 	_add_key_action("kick", [KEY_K])
 	_add_key_action("dropgoal", [KEY_G])
 	_add_key_action("fend", [KEY_J])
@@ -404,6 +407,11 @@ func _process(delta: float) -> void:
 				else ball.last_touch_team
 			if poss_team >= 0:
 				poss_t[poss_team] += delta
+			if offloader != null:
+				offload_t -= delta
+				if offload_t <= 0.0:
+					_begin_breakdown(offloader)
+					offloader = null
 			if adv_t > 0.0:
 				adv_t -= delta
 				var ac := ball.carrier
@@ -502,6 +510,17 @@ func _check_clock() -> void:
 				int(poss_t[0] / total * 100), int(poss_t[1] / total * 100)]
 		var stats := "%s · Tries %d-%d · Placajes %d-%d" % [
 			poss_pct, tries_n[0], tries_n[1], tackles_n[0], tackles_n[1]]
+		var mvp := ""
+		var bt := 0
+		var bk := 0
+		for p in players:
+			if p.stat_tries > bt:
+				bt = p.stat_tries
+				mvp = " · MVP tries: #%d (%d)" % [p.index + 1, p.stat_tries]
+			if p.stat_tackles > bk:
+				bk = p.stat_tackles
+		if bt > 0:
+			stats += mvp
 		if mode == "tournament":
 			if score[0] > score[1]:
 				tour_wins += 1
@@ -595,6 +614,8 @@ func _on_try(team: int) -> void:
 	last_scoring_team = team
 	conv_spot_x = ball.carrier.global_position.x
 	var scorer := ball.carrier
+	if scorer != null:
+		scorer.stat_tries += 1
 	celebrating = scorer
 	if replay_buf.size() > 30:
 		phase = Phase.REPLAY
@@ -771,6 +792,7 @@ func on_tackle(tackler: RugbyPlayer, carrier: RugbyPlayer) -> void:
 	if phase != Phase.PLAY or carrier.tackled > 0.0:
 		return
 	tackles_n[tackler.team] += 1
+	tackler.stat_tackles += 1
 	if tackler.dive_t > 0.02 and rng.randf() < 0.1:
 		tackler.tackled = 0.8
 		_event_penalty(carrier.team, carrier.global_position,
@@ -778,17 +800,40 @@ func on_tackle(tackler: RugbyPlayer, carrier: RugbyPlayer) -> void:
 		return
 	tackler.tackled = 1.2
 	carrier.tackled = 1.2
+	# ventana de offload: el placado puede soltar la pelota a un apoyo
+	offloader = carrier
+	offload_t = 0.5
 	pending_spot = carrier.global_position
 	ruck_team = carrier.team
 	ruck_dir = int(attack_dir[carrier.team])
-	var support := _nearest(carrier.team, carrier.global_position, carrier, 14.0)
+	ui.show_message("¡PLACAJE!", 1.0)
+	# la IA intenta el offload si tiene apoyo cerca
+	if carrier != controlled and rng.randf() < 0.45:
+		on_offload(carrier)
+
+
+# se acabó la ventana: la pelota va al piso y se forma el ruck
+func _begin_breakdown(c: RugbyPlayer) -> void:
+	var support := _nearest(c.team, c.global_position, c, 14.0)
 	if support != null and rng.randf() < 0.85:
-		pending_team = carrier.team
+		pending_team = c.team
 	else:
-		pending_team = 1 - carrier.team
+		pending_team = 1 - c.team
 	phase = Phase.BREAKDOWN
 	phase_t = 1.15
-	ui.show_message("¡PLACAJE!", 1.0)
+
+
+# offload: el placado tira la pelota hacia atrás antes de ir al piso
+func on_offload(c: RugbyPlayer) -> void:
+	if offloader != c or offload_t <= 0.0:
+		return
+	var target := find_pass_target(c, true)
+	if target == null:
+		return
+	offloader = null
+	offload_t = 0.0
+	ball.throw_to(target, c)
+	ui.flash_hint("¡OFFLOAD!")
 
 
 func _confetti(pos: Vector3, club_col: Color) -> void:

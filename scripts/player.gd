@@ -23,6 +23,10 @@ var step_cd := 0.0
 var surge_t := 0.0
 var stamina := 1.0                 # energía: el sprint cansa
 var kick_anim_t := 0.0              # animación de patada del pateador
+var froze_t := 0.0                  # congelado por un amague (dummy)
+var stat_tries := 0
+var stat_tackles := 0
+var stat_metros := 0.0
 var facing := Vector3(0, 0, 1)
 var hold_pos := Vector3.ZERO
 var col_primary := Color(0.2, 0.4, 0.9)
@@ -199,8 +203,12 @@ func _physics_process(delta: float) -> void:
 	cool_kick = maxf(0.0, cool_kick - delta)
 	dive_cd = maxf(0.0, dive_cd - delta)
 	kick_anim_t = maxf(0.0, kick_anim_t - delta)
+	froze_t = maxf(0.0, froze_t - delta)
 	step_cd = maxf(0.0, step_cd - delta)
 	if tackled > 0.0:
+		if self == game.controlled and game.offloader == self \
+				and Input.is_action_just_pressed("pass"):
+			game.on_offload(self)
 		tackled -= delta
 		velocity.x = 0.0
 		velocity.z = 0.0
@@ -208,6 +216,13 @@ func _physics_process(delta: float) -> void:
 		_update_visual(delta, 0.0)
 		return
 
+	# congelado por el amague: no te podés mover ni placar
+	if froze_t > 0.0:
+		velocity.x = 0.0
+		velocity.z = 0.0
+		_apply_gravity_move(delta)
+		_update_visual(delta, 0.0)
+		return
 	# pick and go: el forward carga hacia adelante unos metros
 	if surge_t > 0.0:
 		surge_t -= delta
@@ -256,6 +271,8 @@ func _physics_process(delta: float) -> void:
 		facing = facing.lerp(Vector3(velocity.x, 0.0, velocity.z).normalized(),
 			delta * 10.0).normalized()
 	_update_visual(delta, hs)
+	if game.ball != null and game.ball.carrier == self:
+		stat_metros += hs * delta
 	_try_pickup()
 	_try_tackle()
 
@@ -304,6 +321,9 @@ func _desired_velocity() -> Vector3:
 			if Input.is_action_just_pressed("crosskick"):
 				_do_crosskick()
 			if Input.is_action_just_pressed("step") and step_cd <= 0.0:
+				_start_step()
+			if Input.is_action_just_pressed("dummy"):
+				_do_dummy()
 				_start_step()
 			if Input.is_action_just_pressed("fend") and cool_fend <= 0.0:
 				_do_fend()
@@ -573,6 +593,8 @@ func _try_pickup() -> void:
 
 
 func _try_tackle() -> void:
+	if froze_t > 0.0:
+		return
 	var c := game.ball.carrier
 	if c == null or c.team == team or c.tackled > 0.0:
 		return
@@ -629,6 +651,20 @@ func _do_kick() -> void:
 	var d := float(game.attack_dir[team])
 	var dir := Vector3(-global_position.x * 0.015, 0.0, d).normalized()
 	game.ball.kicked(self, dir)
+
+# dummy pass: amague que congela a los defensores cercanos medio segundo
+func _do_dummy() -> void:
+	var n := 0
+	for p in game.players:
+		if p.team == team or p.tackled > 0.0:
+			continue
+		if p.global_position.distance_to(global_position) < 4.5:
+			p.froze_t = 0.5
+			n += 1
+	if n > 0:
+		game.ui.flash_hint("¡AMAGUE! %d defensores picaron" % n)
+	cool_pass = 0.35
+
 
 func _do_grubber() -> void:
 	var d := float(game.attack_dir[team])

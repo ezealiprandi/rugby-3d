@@ -136,7 +136,9 @@ Q / E — pase a la izquierda / derecha
 Espacio — pase al apoyo más cercano
 F — placaje · en el ruck: intentá robar la pelota
 X — sidestep (amague lateral, difícil de placar)
+B — dummy pass (amague que congela defensores)
 J — fend (quitarse el placaje)
+Espacio al ser placado — offload a un apoyo
 C — grubber (patada rasante por el piso)
 V — up and under (patada alta disputada)
 Z — cross kick (al wing del lado opuesto)
