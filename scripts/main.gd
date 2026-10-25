@@ -81,6 +81,7 @@ var opt_sprint_toggle := false # false mantener · true alternar
 var opt_game_speed := 1.0      # 1.0 · 0.75 · 0.5 (accesibilidad)
 var opt_ui_big := false        # interfaz más grande
 var opt_lang := "es"           # es · en
+var last_champion := -1        # índice del último campeón del torneo
 var conv_pts := 2                     # 2 conversión · 3 penal a los palos
 
 # drop goal en juego abierto
@@ -225,6 +226,7 @@ func _load_options() -> void:
 		opt_game_speed = cfg.get_value("game", "game_speed", 1.0)
 		opt_ui_big = cfg.get_value("game", "ui_big", false)
 		opt_lang = cfg.get_value("game", "lang", "es")
+		last_champion = cfg.get_value("records", "champion", -1)
 	_apply_options()
 
 
@@ -626,6 +628,11 @@ func _check_clock() -> void:
 			# última fecha y campeón → festejo del equipo entero
 			if tour_pos >= tour_fixture.size() - 1 \
 					and _table_order()[0] == home_idx:
+				last_champion = home_idx
+				var ccfg := ConfigFile.new()
+				ccfg.load("user://settings.cfg")
+				ccfg.set_value("records", "champion", home_idx)
+				ccfg.save("user://settings.cfg")
 				celebrate_all_team = 0
 				_confetti(players[0].global_position,
 					RugbyTeams.CLUBS[home_idx]["primary"])

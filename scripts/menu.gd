@@ -1,9 +1,9 @@
 extends CanvasLayer
 class_name RugbyMenu
 
-# Menú principal: título → elegir equipo local → elegir rival → partido.
-# Hecho con contenedores + botones: funciona con mouse y teclado, y se adapta
-# a cualquier resolución de ventana.
+# Menú principal estilo Rugby 25 / EA Sports: panel de navegación lateral
+# izquierdo con ítems grandes, zona "hero" a la derecha (muro de camisetas /
+# vista previa del club) y barra inferior de hints de teclado.
 enum Step { HIDDEN, TITLE, HOME, AWAY, CONTROLS, OPTIONS }
 
 var game: RugbyGame
@@ -11,45 +11,46 @@ var step := Step.HIDDEN
 var cursor := 0
 var home_idx := -1
 var mode := "friendly"
+var nav_idx := 0
 
-var bgt: TextureRect
 var title_lbl: Label
+var title2_lbl: Label
 var subtitle_lbl: Label
 var prompt_lbl: Label
 var result_lbl: Label
-var play_btn: Button
-var tourney_btn: Button
-var practice_btn: Button
-var controls_btn: Button
-var options_btn: Button
-var controls_lbl: Label
+var version_lbl: Label
+var hint_lbl: Label
+var champ_lbl: Label
+var nav_box: VBoxContainer
+var nav_btns: Array[Button] = []
+var content_box: VBoxContainer
+var controls_lbl: RichTextLabel
 var opt_box: VBoxContainer
 var opt_btns: Array[Button] = []
 var opt_hdrs := {}          # Label -> clave de idioma
 var grid: GridContainer
-var sel_row: HBoxContainer
 var buttons: Array[Button] = []
-var footer_lbl: Label
+var hero_box: VBoxContainer
+var preview_box: VBoxContainer
 var preview_tex: TextureRect
 var preview_lbl: Label
 
 
 const EN := {
 	"AMISTOSO": "FRIENDLY",
+	"TORNEO URT": "URT TOURNAMENT",
 	"TORNEO URT · 11 fechas": "URT TOURNAMENT · 11 rounds",
 	"PRÁCTICA LIBRE": "FREE PRACTICE",
 	"CONTROLES": "CONTROLS",
 	"OPCIONES": "OPTIONS",
-	"Unión de Rugby de Tucumán · Edición clubes": "Tucumán Rugby Union · Clubs edition",
-	"15 vs 15 · camisetas oficiales · árbitro en cancha": "15 vs 15 · official kits · referee on pitch",
-	"Click o Enter para jugar": "Click or Enter to play",
+	"Unión de Rugby de Tucumán": "Tucumán Rugby Union",
+	"Edición clubes · 15 vs 15": "Clubs edition · 15 vs 15",
+	"LOS 12 CLUBES DE LA URT": "THE 12 URT CLUBS",
+	"ÚLTIMO CAMPEÓN": "LAST CHAMPION",
 	"ELEGÍ TU EQUIPO": "CHOOSE YOUR TEAM",
 	"ELEGÍ EL RIVAL": "CHOOSE THE OPPONENT",
 	" — TORNEO URT": " — URT TOURNAMENT",
 	" — tu equipo: ": " — your team: ",
-	"↑↓ mover · Enter/click confirmar · Esc volver": "↑↓ move · Enter/click confirm · Esc back",
-	"Enter/click cambia el valor · Esc guarda y vuelve": "Enter/click changes · Esc saves & back",
-	"Esc volver": "Esc back",
 	"CAMPEÓN 2026": "2026 CHAMPION",
 	"PARTIDO": "MATCH", "GRÁFICOS": "GRAPHICS", "AUDIO": "AUDIO",
 	"ACCESIBILIDAD": "ACCESSIBILITY", "IDIOMA": "LANGUAGE",
@@ -58,13 +59,67 @@ const EN := {
 	"Horario": "Time of day", "Clima": "Weather",
 	"Aleatorio": "Random", "Día": "Day", "Atardecer": "Sunset", "Noche": "Night",
 	"Despejado": "Clear", "Lluvia": "Rain",
-	"Calidad gráfica": "Graphics quality", "Baja": "Low", "Media": "Medium", "Alta": "High",
+	"Calidad gráfica": "Graphics quality", "Baja": "Low", "Media": "Medium",
+	"Alta": "High",
 	"Pantalla completa": "Fullscreen", "VSync": "VSync",
 	"Sonido": "Sound", "Volumen": "Volume", "Sí": "Yes", "No": "No",
 	"Sprint": "Sprint", "Mantener": "Hold", "Alternar": "Toggle",
 	"Velocidad del juego": "Game speed", "Interfaz grande": "Big UI",
-	"Idioma": "Language", "Español": "Español", "Inglés": "English",
+	"Idioma": "Language",
+	"↑↓ navegar · Enter aceptar": "↑↓ navigate · Enter select",
+	"↑↓←→ mover · Enter confirmar · Esc volver": "↑↓←→ move · Enter confirm · Esc back",
+	"↑↓ elegir opción · Enter cambiar · Esc guardar": "↑↓ pick · Enter change · Esc save",
+	"Esc volver": "Esc back",
+	"Fácil": "Easy", "Normal": "Normal", "Difícil": "Hard",
+	"min": "min",
 }
+
+
+const CONTROLS_ES := """WASD / Flechas — mover
+Shift — sprint
+Q / E — pase a la izquierda / derecha
+Espacio — pase al apoyo más cercano
+F — placaje · en el ruck: intentá robar la pelota
+X — sidestep (amague lateral, difícil de placar)
+B — dummy pass (amague que congela defensores)
+J — fend (quitarse el placaje)
+Espacio al ser placado — offload a un apoyo
+C — grubber (patada rasante por el piso)
+V — up and under (patada alta disputada)
+Z — cross kick (al wing del lado opuesto)
+T — en un penal: patada al touch (lineout propio)
+K — patada larga · en un penal: a los palos (+3)
+G — drop goal (en juego, cerca de los palos)
+Espacio ×2 — conversión: dirección y potencia
+Esc — pausa
+R / M — revancha / menú (al final, o M en práctica)
+
+Reglas extra: placaje alto y "no soltó" = penal ·
+atrapar una patada rival en tus 22 = marca ·
+ventaja, sin bin a los 2 penales y roja al 4°"""
+
+const CONTROLS_EN := """WASD / Arrows — move
+Shift — sprint
+Q / E — pass left / right
+Space — pass to nearest support
+F — tackle · in the ruck: jackal for the ball
+X — sidestep (harder to tackle)
+B — dummy pass (freezes defenders)
+J — fend
+Space when tackled — offload to a support
+C — grubber kick (along the ground)
+V — up and under (high contestable kick)
+Z — cross kick (to the far wing)
+T — on a penalty: kick to touch (your lineout)
+K — long kick · on a penalty: kick at goal (+3)
+G — drop goal (in open play, near the posts)
+Space ×2 — conversion: direction and power
+Esc — pause
+R / M — rematch / menu (at the end, or M in practice)
+
+Extra rules: high tackle and "not releasing" = penalty ·
+catching a rival kick inside your 22 = mark ·
+advantage, sin bin at 2 penalties and red at 4"""
 
 
 func T(txt: String) -> String:
@@ -73,30 +128,44 @@ func T(txt: String) -> String:
 	return txt
 
 
-func _mode_button(text: String, bg_c: Color, border_c: Color) -> Button:
-	var b := Button.new()
-	b.text = text
-	b.custom_minimum_size = Vector2(300, 50)
-	b.add_theme_font_size_override("font_size", 24)
-	b.add_theme_stylebox_override("normal", _btn_style(bg_c, border_c))
-	b.add_theme_stylebox_override("hover",
-		_btn_style(bg_c.lightened(0.25), border_c.lightened(0.35)))
-	b.add_theme_stylebox_override("pressed",
-		_btn_style(bg_c.darkened(0.25), border_c.lightened(0.35)))
-	b.add_theme_stylebox_override("focus",
-		_btn_style(bg_c.lightened(0.25), Color(1.0, 0.85, 0.2)))
-	b.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	return b
-
-
 func _lbl(size: int) -> Label:
 	var l := Label.new()
 	l.add_theme_font_size_override("font_size", size)
-	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	l.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
 	l.add_theme_constant_override("outline_size", 6)
 	l.autowrap_mode = TextServer.AUTOWRAP_OFF
 	return l
+
+
+# Item grande del nav lateral: transparente, borde dorado al enfocar.
+func _nav_button(text: String) -> Button:
+	var b := Button.new()
+	b.text = text
+	b.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	b.custom_minimum_size = Vector2(400, 56)
+	b.add_theme_font_size_override("font_size", 30)
+	b.focus_mode = Control.FOCUS_ALL
+	var flat := func(bg: Color, border: Color, bw: int) -> StyleBoxFlat:
+		var sb := StyleBoxFlat.new()
+		sb.bg_color = bg
+		sb.border_color = border
+		sb.border_width_left = bw
+		sb.content_margin_left = 18
+		sb.content_margin_top = 4
+		sb.content_margin_bottom = 4
+		return sb
+	b.add_theme_stylebox_override("normal", flat.call(Color(0, 0, 0, 0), Color(0, 0, 0, 0), 0))
+	b.add_theme_stylebox_override("hover",
+		flat.call(Color(1, 1, 1, 0.07), Color(1.0, 0.75, 0.15), 6))
+	b.add_theme_stylebox_override("pressed",
+		flat.call(Color(1, 1, 1, 0.15), Color(1.0, 0.75, 0.15), 6))
+	b.add_theme_stylebox_override("focus",
+		flat.call(Color(1, 1, 1, 0.09), Color(1.0, 0.75, 0.15), 6))
+	b.add_theme_color_override("font_color", Color(0.9, 0.92, 0.88))
+	b.add_theme_color_override("font_hover_color", Color(1.0, 0.85, 0.3))
+	b.add_theme_color_override("font_focus_color", Color(1.0, 0.85, 0.3))
+	b.mouse_entered.connect(func(): b.grab_focus())
+	return b
 
 
 func _btn_style(bg_color: Color, border: Color) -> StyleBoxFlat:
@@ -122,6 +191,7 @@ func _ready() -> void:
 	layer = 30
 	process_mode = Node.PROCESS_MODE_ALWAYS
 
+	# fondo degradado
 	var grad := Gradient.new()
 	grad.set_color(0, Color(0.02, 0.09, 0.05, 0.85))
 	grad.set_color(1, Color(0.01, 0.03, 0.02, 0.93))
@@ -136,139 +206,108 @@ func _ready() -> void:
 	bgt.set_anchors_preset(Control.PRESET_FULL_RECT)
 	add_child(bgt)
 
-	var center := CenterContainer.new()
-	center.set_anchors_preset(Control.PRESET_FULL_RECT)
-	add_child(center)
+	# columna principal: fila (panel + hero) arriba, barra de hints abajo
+	var col := VBoxContainer.new()
+	col.set_anchors_preset(Control.PRESET_FULL_RECT)
+	col.add_theme_constant_override("separation", 0)
+	add_child(col)
 
-	var vb := VBoxContainer.new()
-	vb.alignment = BoxContainer.ALIGNMENT_CENTER
-	vb.add_theme_constant_override("separation", 14)
-	center.add_child(vb)
+	var row := HBoxContainer.new()
+	row.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	row.add_theme_constant_override("separation", 0)
+	col.add_child(row)
 
-	title_lbl = _lbl(60)
+	# ===== panel lateral izquierdo =====
+	var side := PanelContainer.new()
+	side.custom_minimum_size = Vector2(500, 0)
+	var side_sb := StyleBoxFlat.new()
+	side_sb.bg_color = Color(0.02, 0.05, 0.035, 0.88)
+	side_sb.border_color = Color(1.0, 0.75, 0.15, 0.55)
+	side_sb.border_width_right = 3
+	side.add_theme_stylebox_override("panel", side_sb)
+	row.add_child(side)
+
+	var smargin := MarginContainer.new()
+	smargin.add_theme_constant_override("margin_left", 34)
+	smargin.add_theme_constant_override("margin_right", 26)
+	smargin.add_theme_constant_override("margin_top", 26)
+	smargin.add_theme_constant_override("margin_bottom", 20)
+	side.add_child(smargin)
+
+	var svb := VBoxContainer.new()
+	svb.add_theme_constant_override("separation", 6)
+	smargin.add_child(svb)
+
+	# logo: RUGBY dorado + TUCUMANO 3D blanco
+	title_lbl = _lbl(58)
 	title_lbl.add_theme_color_override("font_color", Color(1.0, 0.75, 0.15))
-	vb.add_child(title_lbl)
+	title_lbl.text = "RUGBY"
+	svb.add_child(title_lbl)
+	title2_lbl = _lbl(42)
+	title2_lbl.add_theme_color_override("font_color", Color(0.95, 0.95, 0.9))
+	title2_lbl.text = "TUCUMANO 3D"
+	svb.add_child(title2_lbl)
+	subtitle_lbl = _lbl(16)
+	subtitle_lbl.add_theme_color_override("font_color", Color(0.7, 0.85, 0.7))
+	svb.add_child(subtitle_lbl)
 
-	# franja dorada de acento bajo el título
 	var accent := ColorRect.new()
-	accent.custom_minimum_size = Vector2(460, 4)
-	accent.color = Color(1.0, 0.75, 0.15, 0.9)
-	accent.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	vb.add_child(accent)
+	accent.custom_minimum_size = Vector2(0, 3)
+	accent.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	accent.color = Color(1.0, 0.75, 0.15, 0.85)
+	svb.add_child(accent)
 
-	subtitle_lbl = _lbl(20)
-	subtitle_lbl.add_theme_color_override("font_color", Color(0.8, 0.9, 0.8))
-	vb.add_child(subtitle_lbl)
+	var spacer0 := Control.new()
+	spacer0.custom_minimum_size = Vector2(0, 10)
+	svb.add_child(spacer0)
 
-	result_lbl = _lbl(22)
-	result_lbl.add_theme_color_override("font_color", Color(0.5, 0.95, 0.5))
-	result_lbl.visible = false
-	vb.add_child(result_lbl)
+	prompt_lbl = _lbl(24)
+	prompt_lbl.add_theme_color_override("font_color", Color(1.0, 0.85, 0.3))
+	svb.add_child(prompt_lbl)
 
-	prompt_lbl = _lbl(28)
-	vb.add_child(prompt_lbl)
+	# contenido scrolleable: nav / clubes / opciones / controles
+	var scroll := ScrollContainer.new()
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	svb.add_child(scroll)
 
-	play_btn = _mode_button("AMISTOSO", Color(0.1, 0.4, 0.18), Color(0.4, 0.9, 0.4))
-	play_btn.pressed.connect(func(): _on_mode_pressed("friendly"))
-	vb.add_child(play_btn)
+	content_box = VBoxContainer.new()
+	content_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	content_box.add_theme_constant_override("separation", 4)
+	scroll.add_child(content_box)
 
-	tourney_btn = _mode_button("TORNEO URT · 11 fechas", Color(0.35, 0.25, 0.05), Color(0.9, 0.75, 0.2))
-	tourney_btn.pressed.connect(func(): _on_mode_pressed("tournament"))
-	vb.add_child(tourney_btn)
+	nav_box = VBoxContainer.new()
+	nav_box.add_theme_constant_override("separation", 2)
+	content_box.add_child(nav_box)
 
-	practice_btn = _mode_button("PRÁCTICA LIBRE", Color(0.15, 0.18, 0.3), Color(0.5, 0.6, 0.9))
-	practice_btn.pressed.connect(func(): _on_mode_pressed("practice"))
-	vb.add_child(practice_btn)
-
-	controls_btn = _mode_button("CONTROLES", Color(0.15, 0.18, 0.3), Color(0.5, 0.6, 0.9))
-	controls_btn.pressed.connect(_on_controls_pressed)
-	vb.add_child(controls_btn)
-
-	options_btn = _mode_button("OPCIONES", Color(0.22, 0.16, 0.3), Color(0.7, 0.55, 0.95))
-	options_btn.pressed.connect(_on_options_pressed)
-	vb.add_child(options_btn)
-
-	# filas de opciones (ciclan valor con Enter/click)
-	opt_box = VBoxContainer.new()
-	opt_box.alignment = BoxContainer.ALIGNMENT_CENTER
-	opt_box.add_theme_constant_override("separation", 8)
-	opt_box.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	opt_box.visible = false
-	vb.add_child(opt_box)
-	var opt_layout: Array = [
-		"PARTIDO", 0, 1, 2, 3,
-		"GRÁFICOS", 4, 5, 6,
-		"AUDIO", 7, 8,
-		"CONTROLES", 9,
-		"ACCESIBILIDAD", 10, 11,
-		"IDIOMA", 12,
+	var nav_items := [
+		["AMISTOSO", func(): _on_mode_pressed("friendly")],
+		["TORNEO URT", func(): _on_mode_pressed("tournament")],
+		["PRÁCTICA LIBRE", func(): _on_mode_pressed("practice")],
+		["OPCIONES", _on_options_pressed],
+		["CONTROLES", _on_controls_pressed],
 	]
-	for spec in opt_layout:
-		if spec is String:
-			var hl := _lbl(15)
-			hl.add_theme_color_override("font_color", Color(1.0, 0.75, 0.15))
-			hl.text = "— " + spec + " —"
-			opt_box.add_child(hl)
-			opt_hdrs[hl] = spec
-		else:
-			var ob := Button.new()
-			ob.custom_minimum_size = Vector2(480, 36)
-			ob.add_theme_font_size_override("font_size", 19)
-			ob.alignment = HORIZONTAL_ALIGNMENT_LEFT
-			ob.add_theme_stylebox_override("normal",
-				_btn_style(Color(0.1, 0.1, 0.14, 0.9), Color(0.4, 0.35, 0.55)))
-			ob.add_theme_stylebox_override("hover",
-				_btn_style(Color(0.2, 0.16, 0.3), Color(0.8, 0.65, 1.0)))
-			ob.add_theme_stylebox_override("focus",
-				_btn_style(Color(0.2, 0.16, 0.3), Color(1.0, 0.85, 0.2)))
-			ob.pressed.connect(_cycle_option.bind(spec))
-			opt_box.add_child(ob)
-			opt_btns.append(ob)
-	controls_lbl = _lbl(22)
-	controls_lbl.add_theme_color_override("font_color", Color(0.92, 0.95, 0.9))
-	# (texto ES/EN se asigna en _update_view)
-# (texto ES/EN se asigna en _update_view)
-	controls_lbl.visible = false
-	vb.add_child(controls_lbl)
+	for it in nav_items:
+		var nb := _nav_button(T(it[0]))
+		nb.pressed.connect(it[1])
+		nav_box.add_child(nb)
+		nav_btns.append(nb)
 
-	sel_row = HBoxContainer.new()
-	sel_row.add_theme_constant_override("separation", 24)
-	sel_row.alignment = BoxContainer.ALIGNMENT_CENTER
-	sel_row.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	vb.add_child(sel_row)
-
+	# grilla de clubes (HOME/AWAY)
 	grid = GridContainer.new()
-	grid.columns = 2
-	grid.add_theme_constant_override("h_separation", 10)
-	grid.add_theme_constant_override("v_separation", 8)
-	grid.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	sel_row.add_child(grid)
-
-	# vista previa del club enfocado: camiseta grande + datos
-	var pv := VBoxContainer.new()
-	pv.alignment = BoxContainer.ALIGNMENT_CENTER
-	pv.add_theme_constant_override("separation", 8)
-	pv.custom_minimum_size = Vector2(190, 0)
-	sel_row.add_child(pv)
-	preview_tex = TextureRect.new()
-	preview_tex.custom_minimum_size = Vector2(150, 190)
-	preview_tex.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	preview_tex.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	pv.add_child(preview_tex)
-	preview_lbl = _lbl(18)
-	preview_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	preview_lbl.add_theme_color_override("font_color", Color(0.95, 0.9, 0.6))
-	pv.add_child(preview_lbl)
+	grid.columns = 1
+	grid.add_theme_constant_override("v_separation", 4)
+	grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	content_box.add_child(grid)
 
 	var clubs: Array = RugbyTeams.CLUBS
 	for i in clubs.size():
 		var b := Button.new()
-		b.custom_minimum_size = Vector2(430, 44)
+		b.custom_minimum_size = Vector2(0, 42)
 		b.add_theme_font_size_override("font_size", 19)
 		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
 		b.focus_mode = Control.FOCUS_ALL
 		b.icon = RugbyTeams.jersey_texture(i)
-		b.expand_icon = true
 		b.add_theme_stylebox_override("normal",
 			_btn_style(Color(0.08, 0.12, 0.09, 0.9), Color(0.3, 0.4, 0.3)))
 		b.add_theme_stylebox_override("hover",
@@ -284,20 +323,155 @@ func _ready() -> void:
 		grid.add_child(b)
 		buttons.append(b)
 
-	footer_lbl = _lbl(16)
-	footer_lbl.add_theme_color_override("font_color", Color(1, 1, 1, 0.6))
-	vb.add_child(footer_lbl)
+	# opciones
+	opt_box = VBoxContainer.new()
+	opt_box.add_theme_constant_override("separation", 4)
+	opt_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	opt_box.visible = false
+	content_box.add_child(opt_box)
+	var opt_layout: Array = [
+		"PARTIDO", 0, 1, 2, 3,
+		"GRÁFICOS", 4, 5, 6,
+		"AUDIO", 7, 8,
+		"CONTROLES", 9,
+		"ACCESIBILIDAD", 10, 11,
+		"IDIOMA", 12,
+	]
+	for spec in opt_layout:
+		if spec is String:
+			var hl := _lbl(15)
+			hl.add_theme_color_override("font_color", Color(1.0, 0.75, 0.15))
+			hl.text = "— " + spec + " —"
+			hl.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+			opt_box.add_child(hl)
+			opt_hdrs[hl] = spec
+		else:
+			var ob := Button.new()
+			ob.custom_minimum_size = Vector2(0, 36)
+			ob.add_theme_font_size_override("font_size", 19)
+			ob.alignment = HORIZONTAL_ALIGNMENT_LEFT
+			ob.add_theme_stylebox_override("normal",
+				_btn_style(Color(0.1, 0.1, 0.14, 0.9), Color(0.4, 0.35, 0.55)))
+			ob.add_theme_stylebox_override("hover",
+				_btn_style(Color(0.2, 0.16, 0.3), Color(0.8, 0.65, 1.0)))
+			ob.add_theme_stylebox_override("focus",
+				_btn_style(Color(0.2, 0.16, 0.3), Color(1.0, 0.85, 0.2)))
+			ob.pressed.connect(_cycle_option.bind(spec))
+			opt_box.add_child(ob)
+			opt_btns.append(ob)
+
+	# controles con BBCode (teclas en dorado)
+	controls_lbl = RichTextLabel.new()
+	controls_lbl.bbcode_enabled = true
+	controls_lbl.fit_content = true
+	controls_lbl.scroll_active = false
+	controls_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	controls_lbl.add_theme_font_size_override("normal_font_size", 20)
+	controls_lbl.add_theme_color_override("default_color", Color(0.92, 0.95, 0.9))
+	controls_lbl.visible = false
+	content_box.add_child(controls_lbl)
+
+	result_lbl = _lbl(19)
+	result_lbl.add_theme_color_override("font_color", Color(0.5, 0.95, 0.5))
+	result_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	result_lbl.visible = false
+	svb.add_child(result_lbl)
+
+	var spacer := Control.new()
+	spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	svb.add_child(spacer)
+
+	version_lbl = _lbl(14)
+	version_lbl.add_theme_color_override("font_color", Color(1, 1, 1, 0.45))
+	version_lbl.text = "v5.0 · Rugby Tucumano"
+	svb.add_child(version_lbl)
+
+	# ===== zona derecha: hero (muro de camisetas) / vista previa =====
+	var right := CenterContainer.new()
+	right.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(right)
+
+	var rvb := VBoxContainer.new()
+	rvb.alignment = BoxContainer.ALIGNMENT_CENTER
+	rvb.add_theme_constant_override("separation", 18)
+	right.add_child(rvb)
+
+	# hero: título + muro de 12 camisetas + último campeón
+	hero_box = VBoxContainer.new()
+	hero_box.alignment = BoxContainer.ALIGNMENT_CENTER
+	hero_box.add_theme_constant_override("separation", 14)
+	rvb.add_child(hero_box)
+
+	var hero_t := _lbl(30)
+	hero_t.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	hero_t.add_theme_color_override("font_color", Color(0.95, 0.95, 0.9))
+	hero_t.text = T("LOS 12 CLUBES DE LA URT")
+	hero_box.add_child(hero_t)
+
+	var wall := GridContainer.new()
+	wall.columns = 4
+	wall.add_theme_constant_override("h_separation", 16)
+	wall.add_theme_constant_override("v_separation", 12)
+	wall.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	hero_box.add_child(wall)
+	for ci in clubs.size():
+		var tr := TextureRect.new()
+		tr.texture = RugbyTeams.jersey_texture(ci)
+		tr.custom_minimum_size = Vector2(66, 84)
+		tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		tr.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		wall.add_child(tr)
+
+	champ_lbl = _lbl(20)
+	champ_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	champ_lbl.add_theme_color_override("font_color", Color(1.0, 0.85, 0.3))
+	hero_box.add_child(champ_lbl)
 
 	# franja decorativa con los 12 colores de club
 	var strip := HBoxContainer.new()
 	strip.add_theme_constant_override("separation", 6)
 	strip.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	vb.add_child(strip)
-	for c in RugbyTeams.CLUBS:
+	hero_box.add_child(strip)
+	for c in clubs:
 		var r := ColorRect.new()
 		r.color = c["primary"]
-		r.custom_minimum_size = Vector2(28, 9)
+		r.custom_minimum_size = Vector2(30, 10)
 		strip.add_child(r)
+
+	# vista previa del club enfocado (HOME/AWAY)
+	preview_box = VBoxContainer.new()
+	preview_box.alignment = BoxContainer.ALIGNMENT_CENTER
+	preview_box.add_theme_constant_override("separation", 10)
+	preview_box.visible = false
+	rvb.add_child(preview_box)
+	preview_tex = TextureRect.new()
+	preview_tex.custom_minimum_size = Vector2(240, 300)
+	preview_tex.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	preview_tex.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	preview_tex.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	preview_box.add_child(preview_tex)
+	preview_lbl = _lbl(24)
+	preview_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	preview_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	preview_lbl.add_theme_color_override("font_color", Color(0.95, 0.9, 0.6))
+	preview_lbl.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	preview_box.add_child(preview_lbl)
+
+	# ===== barra inferior de hints (estilo consola) =====
+	var bar := PanelContainer.new()
+	bar.custom_minimum_size = Vector2(0, 46)
+	var bar_sb := StyleBoxFlat.new()
+	bar_sb.bg_color = Color(0.01, 0.02, 0.015, 0.92)
+	bar_sb.border_color = Color(1.0, 0.75, 0.15, 0.4)
+	bar_sb.border_width_top = 2
+	bar_sb.content_margin_left = 30
+	bar.add_theme_stylebox_override("panel", bar_sb)
+	col.add_child(bar)
+	hint_lbl = _lbl(18)
+	hint_lbl.add_theme_color_override("font_color", Color(0.95, 0.9, 0.7))
+	hint_lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	hint_lbl.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	bar.add_child(hint_lbl)
 
 
 func start() -> void:
@@ -312,55 +486,68 @@ func hide_menu() -> void:
 
 
 func _update_view() -> void:
-	var clubs: Array = RugbyTeams.CLUBS
 	var is_title := step == Step.TITLE
-	var is_controls := step == Step.CONTROLS
-	title_lbl.visible = is_title
-	subtitle_lbl.visible = is_title
-	result_lbl.visible = is_title and result_lbl.text != ""
-	play_btn.visible = is_title
-	tourney_btn.visible = is_title
-	practice_btn.visible = is_title
-	controls_btn.visible = is_title
-	options_btn.visible = is_title
+	nav_box.visible = is_title
+	grid.visible = step == Step.HOME or step == Step.AWAY
 	opt_box.visible = step == Step.OPTIONS
-	sel_row.visible = step == Step.HOME or step == Step.AWAY
-	controls_lbl.visible = is_controls
+	controls_lbl.visible = step == Step.CONTROLS
+	hero_box.visible = is_title
+	preview_box.visible = step == Step.HOME or step == Step.AWAY
+	result_lbl.visible = is_title and result_lbl.text != ""
+	subtitle_lbl.text = T("Unión de Rugby de Tucumán")
+	champ_lbl.text = ""
+	if game != null and game.last_champion >= 0:
+		champ_lbl.text = "★ " + T("ÚLTIMO CAMPEÓN") + ": " + \
+			RugbyTeams.CLUBS[game.last_champion]["name"] + " ★"
 
 	match step:
 		Step.TITLE:
-			title_lbl.text = "RUGBY TUCUMANO 3D"
-			subtitle_lbl.text = T("Unión de Rugby de Tucumán · Edición clubes")
-			prompt_lbl.text = T("15 vs 15 · camisetas oficiales · árbitro en cancha")
-			footer_lbl.text = T("Click o Enter para jugar") + " · v4.0"
-			play_btn.text = T("AMISTOSO")
-			tourney_btn.text = T("TORNEO URT · 11 fechas")
-			practice_btn.text = T("PRÁCTICA LIBRE")
-			controls_btn.text = T("CONTROLES")
-			options_btn.text = T("OPCIONES")
-			play_btn.grab_focus()
+			prompt_lbl.text = T("Edición clubes · 15 vs 15")
+			hint_lbl.text = T("↑↓ navegar · Enter aceptar")
+			for i in nav_btns.size():
+				nav_btns[i].text = T([
+					"AMISTOSO", "TORNEO URT", "PRÁCTICA LIBRE",
+					"OPCIONES", "CONTROLES"][i])
+			nav_btns[nav_idx].grab_focus()
 		Step.HOME:
 			prompt_lbl.text = T("ELEGÍ TU EQUIPO") + \
 				(T(" — TORNEO URT") if mode == "tournament" else "")
-			footer_lbl.text = T("↑↓ mover · Enter/click confirmar · Esc volver")
+			hint_lbl.text = T("↑↓←→ mover · Enter confirmar · Esc volver")
 			_fill_rows(-1)
 			buttons[cursor].grab_focus()
 			_update_preview()
 		Step.AWAY:
-			prompt_lbl.text = T("ELEGÍ EL RIVAL") + T(" — tu equipo: ") + clubs[home_idx]["name"]
-			footer_lbl.text = T("↑↓ mover · Enter/click confirmar · Esc volver")
+			prompt_lbl.text = T("ELEGÍ EL RIVAL") + T(" — tu equipo: ") + \
+				RugbyTeams.CLUBS[home_idx]["name"]
+			hint_lbl.text = T("↑↓←→ mover · Enter confirmar · Esc volver")
 			_fill_rows(home_idx)
 			buttons[cursor].grab_focus()
 			_update_preview()
 		Step.CONTROLS:
 			prompt_lbl.text = T("CONTROLES")
-			controls_lbl.text = CONTROLS_EN if game.opt_lang == "en" else CONTROLS_ES
-			footer_lbl.text = T("Esc volver")
+			hint_lbl.text = T("Esc volver")
+			var txt: String = CONTROLS_EN if game.opt_lang == "en" else CONTROLS_ES
+			controls_lbl.text = _bb_controls(txt)
 		Step.OPTIONS:
 			prompt_lbl.text = T("OPCIONES")
-			footer_lbl.text = T("Enter/click cambia el valor · Esc guarda y vuelve")
+			hint_lbl.text = T("↑↓ elegir opción · Enter cambiar · Esc guardar")
 			_refresh_options()
 			opt_btns[0].grab_focus()
+
+
+# Colorea en dorado la tecla de cada línea de controles.
+func _bb_controls(txt: String) -> String:
+	var out := ""
+	for line in txt.split("\n"):
+		var p := line.find("—")
+		if p > 0:
+			out += "[color=#f5c542][b]" + line.substr(0, p) + \
+				"[/b][/color][color=#e8ebe4]" + line.substr(p) + "[/color]\n"
+		elif line.begins_with("Reglas") or line.begins_with("Extra"):
+			out += "[color=#f5c542]" + line + "[/color]\n"
+		else:
+			out += line + "\n"
+	return out
 
 
 func _fill_rows(exclude: int) -> void:
@@ -370,7 +557,7 @@ func _fill_rows(exclude: int) -> void:
 		var tag := "  ★ " + T("CAMPEÓN 2026") if i == RugbyTeams.NYG_INDEX else ""
 		b.text = "%s  (%s)%s" % [clubs[i]["name"], clubs[i]["city"], tag]
 		b.disabled = i == exclude
-		b.modulate = Color(1, 1, 1, 0.4) if i == exclude else Color(1, 1, 1)
+		b.modulate = Color(1, 1, 1, 0.35) if i == exclude else Color(1, 1, 1)
 
 
 func _process(_delta: float) -> void:
@@ -379,31 +566,37 @@ func _process(_delta: float) -> void:
 	if Input.is_action_just_pressed("pause"):
 		_back()
 		return
-	if step == Step.HOME or step == Step.AWAY:
-		var fo := get_viewport().gui_get_focus_owner()
-		if fo != null and fo in buttons:
-			var fi := buttons.find(fo)
-			if fi != cursor:
-				cursor = fi
-				_update_preview()
-		if Input.is_action_just_pressed("move_down"):
-			_move_cursor(2)
-		elif Input.is_action_just_pressed("move_up"):
-			_move_cursor(-2)
-		elif Input.is_action_just_pressed("move_right"):
-			_move_cursor(1)
-		elif Input.is_action_just_pressed("move_left"):
-			_move_cursor(-1)
-	elif step == Step.OPTIONS:
-		var d := 0
-		if Input.is_action_just_pressed("move_down"):
-			d = 1
-		elif Input.is_action_just_pressed("move_up"):
-			d = -1
-		if d != 0:
-			var ci := opt_btns.find(get_viewport().gui_get_focus_owner())
-			ci = (ci + d + opt_btns.size()) % opt_btns.size() if ci >= 0 else 0
-			opt_btns[ci].grab_focus()
+	match step:
+		Step.TITLE:
+			var d := 0
+			if Input.is_action_just_pressed("move_down"):
+				d = 1
+			elif Input.is_action_just_pressed("move_up"):
+				d = -1
+			if d != 0:
+				nav_idx = (nav_idx + d + nav_btns.size()) % nav_btns.size()
+				nav_btns[nav_idx].grab_focus()
+		Step.HOME, Step.AWAY:
+			var fo := get_viewport().gui_get_focus_owner()
+			if fo != null and fo in buttons:
+				var fi := buttons.find(fo)
+				if fi != cursor:
+					cursor = fi
+					_update_preview()
+			if Input.is_action_just_pressed("move_down"):
+				_move_cursor(1)
+			elif Input.is_action_just_pressed("move_up"):
+				_move_cursor(-1)
+		Step.OPTIONS:
+			var od := 0
+			if Input.is_action_just_pressed("move_down"):
+				od = 1
+			elif Input.is_action_just_pressed("move_up"):
+				od = -1
+			if od != 0:
+				var ci := opt_btns.find(get_viewport().gui_get_focus_owner())
+				ci = (ci + od + opt_btns.size()) % opt_btns.size() if ci >= 0 else 0
+				opt_btns[ci].grab_focus()
 
 
 func _move_cursor(delta: int) -> void:
@@ -455,57 +648,6 @@ func flash_result(msg: String) -> void:
 func _on_controls_pressed() -> void:
 	step = Step.CONTROLS
 	_update_view()
-
-
-const CONTROLS_ES := """WASD / Flechas — mover
-Shift — sprint
-Q / E — pase a la izquierda / derecha
-Espacio — pase al apoyo más cercano
-F — placaje · en el ruck: intentá robar la pelota
-X — sidestep (amague lateral, difícil de placar)
-B — dummy pass (amague que congela defensores)
-J — fend (quitarse el placaje)
-Espacio al ser placado — offload a un apoyo
-C — grubber (patada rasante por el piso)
-V — up and under (patada alta disputada)
-Z — cross kick (al wing del lado opuesto)
-T — en un penal: patada al touch (lineout propio)
-
-Reglas extra: placaje alto y "no soltó" = penal ·
-atrapar una patada rival en tus 22 = marca
-K — patada larga · en un penal: a los palos (+3)
-G — drop goal (en juego, cerca de los palos)
-Espacio ×2 — conversión: dirección y potencia
-Esc — pausa
-R / M — revancha / menú (al final, o M en práctica)
-
-El cono amarillo marca tu jugador: el portador en ataque,
-el defensor más cercano al balón en defensa."""
-
-const CONTROLS_EN := """WASD / Arrows — move
-Shift — sprint
-Q / E — pass left / right
-Space — pass to nearest support
-F — tackle · in the ruck: jackal for the ball
-X — sidestep (harder to tackle)
-B — dummy pass (freezes defenders)
-J — fend
-Space when tackled — offload to a support
-C — grubber kick (along the ground)
-V — up and under (high contestable kick)
-Z — cross kick (to the far wing)
-T — on a penalty: kick to touch (your lineout)
-
-Extra rules: high tackle and "not releasing" = penalty ·
-catching a rival kick inside your 22 = mark
-K — long kick · on a penalty: kick at goal (+3)
-G — drop goal (in open play, near the posts)
-Space ×2 — conversion: direction and power
-Esc — pause
-R / M — rematch / menu (at the end, or M in practice)
-
-The yellow cone marks your player: the ball carrier in attack,
-the nearest defender to the ball in defence."""
 
 
 func _on_options_pressed() -> void:
