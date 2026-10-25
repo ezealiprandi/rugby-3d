@@ -572,16 +572,40 @@ func _process(delta: float) -> void:
 			elif phase_t <= 0.0:
 				_resolve_breakdown()
 		Phase.SCRUM:
-			phase_t -= delta
 			# los packs empujan: el scrum gana metros
 			pending_spot.z += float(attack_dir[pending_team]) * 1.3 * delta
 			pending_spot.z = clampf(pending_spot.z, -TRY_Z + 6.0, TRY_Z - 6.0)
-			if phase_t <= 0.0:
-				_resolve_scrum()
+			if pending_team == 0:
+				if Input.is_action_just_pressed("pass_left"):
+					_scrum_play(-1)
+				elif Input.is_action_just_pressed("pass_right"):
+					_scrum_play(1)
+				elif Input.is_action_just_pressed("pass"):
+					_scrum_play(0)
+				else:
+					phase_t -= delta * 0.4   # más tiempo para decidir
+				if phase_t <= 0.0:
+					_resolve_scrum()
+			else:
+				phase_t -= delta
+				if phase_t <= 0.0:
+					_resolve_scrum()
 		Phase.LINEOUT:
-			phase_t -= delta
-			if phase_t <= 0.0:
-				_resolve_lineout()
+			if pending_team == 0:
+				if Input.is_action_just_pressed("pass_left"):
+					_lineout_play(0)
+				elif Input.is_action_just_pressed("pass_right"):
+					_lineout_play(1)
+				elif Input.is_action_just_pressed("pass"):
+					_lineout_play(2)
+				else:
+					phase_t -= delta * 0.5
+				if phase_t <= 0.0:
+					_resolve_lineout()
+			else:
+				phase_t -= delta
+				if phase_t <= 0.0:
+					_resolve_lineout()
 		Phase.PENALTY:
 			phase_t -= delta
 			if pending_team == 0:
@@ -959,6 +983,7 @@ func _conv_execute() -> void:
 
 # ─── Eventos reglamentarios ─────────────────────────────────────────────────
 func on_tackle(tackler: RugbyPlayer, carrier: RugbyPlayer) -> void:
+	tackler.hit_t = 0.45
 	if phase != Phase.PLAY or carrier.tackled > 0.0:
 		return
 	tackles_n[tackler.team] += 1
@@ -1191,6 +1216,65 @@ func _resolve_breakdown() -> void:
 	settle_t = 0.45
 
 
+# salida del scrum dirigida: Q/E por un lado del 9, Espacio pick del 8
+func _scrum_play(side: int) -> void:
+	if phase != Phase.SCRUM or pending_team != 0:
+		return
+	if rng.randf() < 0.06:
+		# te roban la introducción igual
+		var tn := players[8 + TEAM_SIZE]
+		ball.set_carrier(tn)
+		ui.show_message("¡TIGHT HEAD! Te robaron el scrum", 2.0)
+		phase = Phase.PLAY
+		return
+	if side == 0:
+		# pick del octavo: agarra del pie del scrum y carga
+		var eight := players[7]
+		ball.set_carrier(eight)
+		eight.surge_t = 0.7
+		ui.flash_hint("¡Pick del 8!")
+	else:
+		var nine := players[8]
+		ball.set_carrier(nine)
+		var target := find_pass_target_side(nine, side)
+		if target != null and target != nine:
+			nine.pass_anim_t = 0.3
+			ball.throw_to(target, nine)
+	phase = Phase.PLAY
+	settle_t = 0.4
+
+
+# tiro de lineout dirigido: 0 corto al 9 · 1 largo al 10 · 2 maul
+func _lineout_play(opt: int) -> void:
+	if phase != Phase.LINEOUT or pending_team != 0:
+		return
+	var hooker := players[1]
+	ball.freeze = false
+	pending_maul_team = -1
+	if opt == 1:
+		var ten := players[9]
+		ball.throw_to(ten, hooker)
+		ball.pass_from = null
+		ui.flash_hint("¡Largo al 10!")
+	else:
+		var jumper: RugbyPlayer = players[4]
+		if jumper.tackled > 0.0:
+			jumper = _nearest(0, pending_spot, null, 999.0)
+		if jumper != null:
+			ball.throw_to(jumper, hooker)
+			ball.pass_from = null
+		if opt == 0:
+			var nine := players[8]
+			if jumper != null and nine.tackled <= 0.0:
+				ball.throw_to(nine, jumper)
+				ball.pass_from = null
+			ui.flash_hint("¡Corto al 9!")
+		else:
+			pending_maul_team = 0
+			ui.flash_hint("¡Maul!")
+	phase = Phase.PLAY
+
+
 # ruck dirigido por el jugador: el 9 abre la pelota donde elegís
 func _ruck_play(side: int) -> void:
 	if phase != Phase.BREAKDOWN or ruck_team != 0:
@@ -1265,6 +1349,8 @@ func _event_scrum(feed_team: int, spot: Vector3, msg: String) -> void:
 	pending_team = feed_team
 	pending_spot = Vector3(clampf(spot.x, -FIELD_HALF_W + 6.0, FIELD_HALF_W - 6.0),
 		0.0, clampf(spot.z, -TRY_Z + 7.0, TRY_Z - 7.0))
+	if feed_team == 0:
+		ui.flash_hint("SCRUM — Q/E salida del 9 · Espacio pick del 8", 2.6)
 	ball.release()
 	ball.freeze = true
 	ball.global_position = pending_spot + Vector3(0, 0.25, 0)
@@ -1307,6 +1393,8 @@ func _event_lineout(throw_team: int, mark_z: float, side: float, msg: String) ->
 	hooker.hold_pos = ball.global_position
 	phase = Phase.LINEOUT
 	phase_t = 1.9
+	if throw_team == 0:
+		ui.flash_hint("LINEOUT — Q corto al 9 · E largo al 10 · Espacio maul", 2.6)
 
 
 func _resolve_lineout() -> void:

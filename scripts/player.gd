@@ -33,6 +33,7 @@ var facing := Vector3(0, 0, 1)
 var wide_mem := 1.0                   # último lado ancho visto
 var pass_anim_t := 0.0                # gesto del pase
 var try_dive_t := 0.0                 # palomita al apoyar el try
+var hit_t := 0.0                      # pose de impacto del placador
 var hold_pos := Vector3.ZERO
 var col_primary := Color(0.2, 0.4, 0.9)
 var col_secondary := Color(0.1, 0.1, 0.1)
@@ -290,6 +291,8 @@ func _physics_process(delta: float) -> void:
 		pass_anim_t -= delta
 	if try_dive_t > 0.0:
 		try_dive_t -= delta
+	if hit_t > 0.0:
+		hit_t -= delta
 		var sd := Vector3(0.0, 0.0, float(game.attack_dir[team]))
 		velocity.x = sd.x * 8.5
 		velocity.z = sd.z * 8.5
@@ -877,6 +880,13 @@ func _update_visual(delta: float, h_speed: float) -> void:
 		arm_r.rotation.x = lerpf(arm_r.rotation.x, -2.6, delta * 12.0)
 		leg_l.rotation.x = lerpf(leg_l.rotation.x, 0.3, delta * 8.0)
 		leg_r.rotation.x = lerpf(leg_r.rotation.x, -0.2, delta * 8.0)
+		return
+	if hit_t > 0.0:                    # placador envolviendo al rival
+		visual.rotation.x = lerpf(visual.rotation.x, 0.4, delta * 12.0)
+		arm_l.rotation.x = lerpf(arm_l.rotation.x, -1.5, delta * 14.0)
+		arm_r.rotation.x = lerpf(arm_r.rotation.x, -1.5, delta * 14.0)
+		leg_l.rotation.x = lerpf(leg_l.rotation.x, 0.5, delta * 10.0)
+		leg_r.rotation.x = lerpf(leg_r.rotation.x, -0.3, delta * 10.0)
 		return
 	if dive_t > 0.0:
 		visual.rotation.x = lerpf(visual.rotation.x, -1.5, delta * 14.0)
