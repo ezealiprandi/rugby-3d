@@ -83,6 +83,9 @@ var opt_sprint_toggle := false # false mantener · true alternar
 var opt_game_speed := 1.0      # 1.0 · 0.75 · 0.5 (accesibilidad)
 var opt_ui_big := false        # interfaz más grande
 var opt_lang := "es"           # es · en
+const RES_MODES := [[1280, 720, "1280×720"], [1366, 768, "1366×768"],
+	[1600, 900, "1600×900"], [1920, 1080, "1920×1080"]]
+var opt_resolution := 2        # índice en RES_MODES
 var last_champion := -1        # índice del último campeón del torneo
 var conv_pts := 2                     # 2 conversión · 3 penal a los palos
 
@@ -212,6 +215,7 @@ func save_options() -> void:
 	cfg.set_value("game", "game_speed", opt_game_speed)
 	cfg.set_value("game", "ui_big", opt_ui_big)
 	cfg.set_value("game", "lang", opt_lang)
+	cfg.set_value("game", "resolution", opt_resolution)
 	cfg.save("user://settings.cfg")
 	_apply_options()
 
@@ -233,6 +237,8 @@ func _load_options() -> void:
 		opt_game_speed = cfg.get_value("game", "game_speed", 1.0)
 		opt_ui_big = cfg.get_value("game", "ui_big", false)
 		opt_lang = cfg.get_value("game", "lang", "es")
+		opt_resolution = clampi(int(cfg.get_value("game", "resolution", 2)),
+			0, RES_MODES.size() - 1)
 		last_champion = cfg.get_value("records", "champion", -1)
 	_apply_options()
 
@@ -243,9 +249,15 @@ func _apply_options() -> void:
 	Engine.time_scale = opt_game_speed
 	DisplayServer.window_set_vsync_mode(
 		DisplayServer.VSYNC_ENABLED if opt_vsync else DisplayServer.VSYNC_DISABLED)
-	DisplayServer.window_set_mode(
-		DisplayServer.WINDOW_MODE_FULLSCREEN if opt_fullscreen
-		else DisplayServer.WINDOW_MODE_MAXIMIZED)
+	if opt_fullscreen:
+		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN)
+	else:
+		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED)
+		var scr := DisplayServer.screen_get_size()
+		var rw: int = RES_MODES[opt_resolution][0]
+		var rh: int = RES_MODES[opt_resolution][1]
+		get_window().size = Vector2i(mini(rw, scr.x), mini(rh, scr.y - 48))
+		get_window().position = (scr - get_window().size) / 2
 	get_window().content_scale_factor = 1.22 if opt_ui_big else 1.0
 	if field != null and field.env_node != null:
 		var e := field.env_node.environment
@@ -380,6 +392,8 @@ func start_match(home: int, away: int, m := "friendly") -> void:
 		away = tour_fixture[tour_pos]
 	away_idx = away
 	ui.show_vs(home_idx, away_idx)
+	ui.tv_show(true)
+	ui.presenter_show(home_idx, away_idx)
 	ui.flash_hint("WASD moverse · Q/E pase · F placaje · K/C/V/Z patadas · Shift sprint", 5.0)
 	ui.set_teams(home_idx, away_idx)
 	if field != null:
@@ -406,6 +420,8 @@ func start_match(home: int, away: int, m := "friendly") -> void:
 
 
 func return_to_menu() -> void:
+	if ui != null:
+		ui.tv_show(false)
 	for p in players:
 		p.queue_free()
 	players.clear()
@@ -509,6 +525,7 @@ func _process(delta: float) -> void:
 			if phase_t <= 0.0:
 				phase = Phase.KICKOFF
 				phase_t = 1.2
+				ui.presenter_hide()
 		Phase.KICKOFF:
 			phase_t -= delta
 			if phase_t <= 0.0:
@@ -779,6 +796,7 @@ func _replay_step() -> void:
 	if replay_i >= replay_buf.size() - 1:
 		phase = Phase.SCORE
 		phase_t = 2.0
+		ui.replay_overlay(false)
 		return
 	var f: Array = replay_buf[replay_i]
 	replay_i += 1
@@ -804,6 +822,7 @@ func _on_try(team: int) -> void:
 	if replay_buf.size() > 30:
 		phase = Phase.REPLAY
 		replay_i = 0
+		ui.replay_overlay(true)
 	else:
 		phase = Phase.SCORE
 		phase_t = 2.0
@@ -828,6 +847,8 @@ func _on_try(team: int) -> void:
 		"¡No lo paró nadie en el cierre!",
 		"Apoyo perfecto — try colectivo"]
 	ui.commentary(scorer_txt + tries_txt[rng.randi() % tries_txt.size()])
+	if scorer != null:
+		ui.scorer_show(scorer)
 	if phase == Phase.REPLAY:
 		ui.show_message("¡¡¡TRY de %s!!! +5 · REPLAY" % _club_name(team), 2.6)
 	else:

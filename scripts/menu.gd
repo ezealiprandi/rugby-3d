@@ -48,7 +48,8 @@ const EN := {
 	"TORNEO URT · 11 fechas": "URT TOURNAMENT · 11 rounds",
 	"PRÁCTICA LIBRE": "FREE PRACTICE",
 	"CONTROLES": "CONTROLS", "SALIR": "EXIT",
-	"Cerrar el juego": "Quit the game",
+	"Cerrar el juego": "Quit the game", "Resolución": "Resolution",
+	"Detrás": "Behind",
 	"Un homenaje al rugby tucumano": "A tribute to Tucumán rugby",
 	"OPCIONES": "OPTIONS",
 	"Unión de Rugby de Tucumán": "Tucumán Rugby Union",
@@ -252,7 +253,7 @@ func _ready() -> void:
 
 	# ===== panel lateral izquierdo =====
 	var side := PanelContainer.new()
-	side.custom_minimum_size = Vector2(500, 0)
+	side.custom_minimum_size = Vector2(580, 0)
 	var side_sb := StyleBoxFlat.new()
 	side_sb.bg_color = Color(0.02, 0.05, 0.035, 0.88)
 	side_sb.border_color = Color(1.0, 0.75, 0.15, 0.55)
@@ -300,6 +301,7 @@ func _ready() -> void:
 
 	# contenido scrolleable: nav / clubes / opciones / controles
 	var scroll := ScrollContainer.new()
+	scroll.follow_focus = true
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	svb.add_child(scroll)
@@ -345,7 +347,7 @@ func _ready() -> void:
 
 	# grilla de clubes (HOME/AWAY)
 	grid = GridContainer.new()
-	grid.columns = 1
+	grid.columns = 2
 	grid.add_theme_constant_override("v_separation", 4)
 	grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	content_box.add_child(grid)
@@ -353,8 +355,9 @@ func _ready() -> void:
 	var clubs: Array = RugbyTeams.CLUBS
 	for i in clubs.size():
 		var b := Button.new()
-		b.custom_minimum_size = Vector2(0, 42)
-		b.add_theme_font_size_override("font_size", 19)
+		b.custom_minimum_size = Vector2(0, 46)
+		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		b.add_theme_font_size_override("font_size", 17)
 		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
 		b.focus_mode = Control.FOCUS_ALL
 		b.icon = RugbyTeams.jersey_texture(i)
@@ -381,7 +384,7 @@ func _ready() -> void:
 	content_box.add_child(opt_box)
 	var opt_layout: Array = [
 		"PARTIDO", 0, 1, 2, 3,
-		"GRÁFICOS", 4, 5, 6, 13,
+		"GRÁFICOS", 4, 5, 6, 14, 13,
 		"AUDIO", 7, 8,
 		"CONTROLES", 9,
 		"ACCESIBILIDAD", 10, 11,
@@ -817,7 +820,9 @@ func _opt_info(i: int) -> Array:
 		10: return [T("Velocidad del juego"), "%d%%" % int(game.opt_game_speed * 100.0)]
 		11: return [T("Interfaz grande"), yn[int(game.opt_ui_big)]]
 		12: return [T("Idioma"), "Español" if game.opt_lang == "es" else "English"]
-		13: return [T("Cámara"), ["Broadcast", T("Cercana"), T("Lejana")][game.opt_camera]]
+		13: return [T("Cámara"), ["Broadcast", T("Cercana"), T("Lejana"),
+			T("Detrás")][game.opt_camera]]
+		14: return [T("Resolución"), game.RES_MODES[game.opt_resolution][2]]
 	return ["", ""]
 
 
@@ -850,7 +855,9 @@ func _cycle_option(i: int) -> void:
 			var spd := [1.0, 0.75, 0.5]
 			game.opt_game_speed = spd[(spd.find(game.opt_game_speed) + 1) % 3]
 		13:
-			game.opt_camera = (game.opt_camera + 1) % 3
+			game.opt_camera = (game.opt_camera + 1) % 4
+		14:
+			game.opt_resolution = (game.opt_resolution + 1) % game.RES_MODES.size()
 		11:
 			game.opt_ui_big = not game.opt_ui_big
 		12:

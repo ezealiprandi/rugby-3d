@@ -36,6 +36,18 @@ var power_fill: ColorRect
 var stats_panel: CenterContainer
 var stats_lbl: Label
 
+# overlay broadcast estilo Rugby 25
+var tv_bug: PanelContainer
+var pres_panel: PanelContainer
+var pres_names: Label
+var replay_top: ColorRect
+var replay_bot: ColorRect
+var replay_tag: Label
+var scorer_panel: PanelContainer
+var scorer_lbl: Label
+var scorer_bar: ColorRect
+var scorer_t := 0.0
+
 
 func _mk_label(size: int) -> Label:
 	var l := Label.new()
@@ -50,6 +62,7 @@ func _mk_label(size: int) -> Label:
 func _ready() -> void:
 	layer = 10
 	process_mode = Node.PROCESS_MODE_ALWAYS   # los botones funcionan en pausa
+	_build_vignette()
 
 	score_lbl = _mk_label(34)
 	score_lbl.set_anchors_preset(Control.PRESET_TOP_WIDE)
@@ -101,6 +114,7 @@ func _ready() -> void:
 	_build_pause_menu()
 	_build_vs_panel()
 	_build_scorebug()
+	_build_broadcast()
 
 
 func _build_stats_panel() -> void:
@@ -228,6 +242,10 @@ func _process(delta: float) -> void:
 			var ci := pause_btns.find(get_viewport().gui_get_focus_owner())
 			ci = (ci + pd + pause_btns.size()) % pause_btns.size() if ci >= 0 else 0
 			pause_btns[ci].grab_focus()
+	if scorer_t > 0.0:
+		scorer_t -= delta
+		if scorer_t <= 0.0:
+			scorer_panel.visible = false
 	if comm_t > 0.0:
 		comm_t -= delta
 		if comm_t <= 0.0:
@@ -332,7 +350,7 @@ func set_paused(on: bool) -> void:
 func _pause_btn(text: String) -> Button:
 	var b := Button.new()
 	b.text = text
-	b.custom_minimum_size = Vector2(340, 50)
+	b.custom_minimum_size = Vector2(460, 54)
 	b.add_theme_font_size_override("font_size", 24)
 	var sb := func(bg: Color, border: Color) -> StyleBoxFlat:
 		var s := StyleBoxFlat.new()
@@ -489,3 +507,164 @@ func conv_set_power(v: float) -> void:
 
 func conv_set_instr(t: String) -> void:
 	conv_instr.text = t
+
+
+# ─── overlay broadcast: viñeta, bug TV, presentador, letterbox, scorer ──────
+func _build_vignette() -> void:
+	var vig := TextureRect.new()
+	var gr := Gradient.new()
+	gr.set_color(0, Color(0, 0, 0, 0))
+	gr.set_color(1, Color(0, 0, 0, 0.45))
+	var gt := GradientTexture2D.new()
+	gt.gradient = gr
+	gt.fill = GradientTexture2D.FILL_RADIAL
+	gt.fill_from = Vector2(0.5, 0.5)
+	gt.fill_to = Vector2(1.0, 0.55)
+	vig.texture = gt
+	vig.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	vig.stretch_mode = TextureRect.STRETCH_SCALE
+	vig.set_anchors_preset(Control.PRESET_FULL_RECT)
+	vig.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(vig)
+	move_child(vig, 0)
+
+
+func _bcast_panel() -> PanelContainer:
+	var p := PanelContainer.new()
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.01, 0.03, 0.02, 0.85)
+	sb.border_color = Color(1.0, 0.75, 0.15, 0.7)
+	sb.border_width_bottom = 3
+	sb.content_margin_left = 14
+	sb.content_margin_right = 14
+	sb.content_margin_top = 7
+	sb.content_margin_bottom = 7
+	p.add_theme_stylebox_override("panel", sb)
+	return p
+
+
+func _build_broadcast() -> void:
+	# bug EN VIVO arriba a la derecha
+	tv_bug = _bcast_panel()
+	tv_bug.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	tv_bug.offset_left = -214
+	tv_bug.offset_right = -14
+	tv_bug.offset_top = 12
+	var tvl := Label.new()
+	tvl.text = "● EN VIVO · URT TV"
+	tvl.add_theme_font_size_override("font_size", 16)
+	tvl.add_theme_color_override("font_color", Color(1.0, 0.35, 0.3))
+	tv_bug.add_child(tvl)
+	tv_bug.visible = false
+	add_child(tv_bug)
+
+	# presentador (lower-third durante la presentación)
+	pres_panel = _bcast_panel()
+	pres_panel.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
+	pres_panel.offset_left = 24
+	pres_panel.offset_bottom = -110
+	pres_panel.offset_top = -190
+	var pvb := VBoxContainer.new()
+	pvb.add_theme_constant_override("separation", 2)
+	pres_panel.add_child(pvb)
+	var pt := Label.new()
+	pt.text = "URT TV · EN DIRECTO"
+	pt.add_theme_font_size_override("font_size", 15)
+	pt.add_theme_color_override("font_color", Color(1.0, 0.75, 0.15))
+	pvb.add_child(pt)
+	pres_names = Label.new()
+	pres_names.add_theme_font_size_override("font_size", 21)
+	pres_names.add_theme_color_override("font_color", Color(0.95, 0.95, 0.9))
+	pvb.add_child(pres_names)
+	var pc := Label.new()
+	pc.text = "Relatos: Martín Heredia  ·  Comentarios: Rodrigo Basualdo"
+	pc.add_theme_font_size_override("font_size", 14)
+	pc.add_theme_color_override("font_color", Color(0.7, 0.75, 0.68))
+	pvb.add_child(pc)
+	pres_panel.visible = false
+	add_child(pres_panel)
+
+	# letterbox + tag de repetición
+	replay_top = ColorRect.new()
+	replay_top.color = Color(0, 0, 0, 0.92)
+	replay_top.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	replay_top.offset_bottom = 54
+	replay_bot = ColorRect.new()
+	replay_bot.color = Color(0, 0, 0, 0.92)
+	replay_bot.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+	replay_bot.offset_top = -54
+	replay_tag = Label.new()
+	replay_tag.text = "◉ REPETICIÓN"
+	replay_tag.add_theme_font_size_override("font_size", 20)
+	replay_tag.add_theme_color_override("font_color", Color(1.0, 0.35, 0.3))
+	replay_tag.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
+	replay_tag.add_theme_constant_override("outline_size", 5)
+	replay_tag.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	replay_tag.offset_left = -210
+	replay_tag.offset_right = -24
+	replay_tag.offset_top = 14
+	for r in [replay_top, replay_bot, replay_tag]:
+		r.visible = false
+		add_child(r)
+
+	# tarjeta del goleador (lower-third)
+	scorer_panel = PanelContainer.new()
+	var ssb := StyleBoxFlat.new()
+	ssb.bg_color = Color(0.01, 0.03, 0.02, 0.9)
+	ssb.border_width_left = 0
+	ssb.content_margin_left = 0
+	scorer_panel.add_theme_stylebox_override("panel", ssb)
+	scorer_panel.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
+	scorer_panel.offset_left = 24
+	scorer_panel.offset_bottom = -110
+	scorer_panel.offset_top = -156
+	var shb := HBoxContainer.new()
+	shb.add_theme_constant_override("separation", 0)
+	scorer_panel.add_child(shb)
+	scorer_bar = ColorRect.new()
+	scorer_bar.custom_minimum_size = Vector2(8, 0)
+	shb.add_child(scorer_bar)
+	var sc := MarginContainer.new()
+	sc.add_theme_constant_override("margin_left", 14)
+	sc.add_theme_constant_override("margin_right", 18)
+	sc.add_theme_constant_override("margin_top", 8)
+	sc.add_theme_constant_override("margin_bottom", 8)
+	shb.add_child(sc)
+	scorer_lbl = Label.new()
+	scorer_lbl.add_theme_font_size_override("font_size", 22)
+	scorer_lbl.add_theme_color_override("font_color", Color(0.97, 0.97, 0.93))
+	scorer_lbl.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
+	scorer_lbl.add_theme_constant_override("outline_size", 5)
+	sc.add_child(scorer_lbl)
+	scorer_panel.visible = false
+	add_child(scorer_panel)
+
+
+func tv_show(on: bool) -> void:
+	tv_bug.visible = on
+
+
+func presenter_show(h_i: int, a_i: int) -> void:
+	pres_names.text = "%s  vs  %s" % [RugbyTeams.CLUBS[h_i]["name"],
+		RugbyTeams.CLUBS[a_i]["name"]]
+	pres_panel.visible = true
+
+
+func presenter_hide() -> void:
+	pres_panel.visible = false
+
+
+func replay_overlay(on: bool) -> void:
+	replay_top.visible = on
+	replay_bot.visible = on
+	replay_tag.visible = on
+
+
+func scorer_show(p: RugbyPlayer) -> void:
+	var club: Dictionary = RugbyTeams.CLUBS[
+		p.game.home_idx if p.team == 0 else p.game.away_idx]
+	scorer_bar.color = club["primary"]
+	scorer_lbl.text = "#%d  %s
+%s" % [p.index + 1, p.pname, club["name"]]
+	scorer_panel.visible = true
+	scorer_t = 4.5

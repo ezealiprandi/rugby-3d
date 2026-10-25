@@ -55,8 +55,17 @@ func _process(delta: float) -> void:
 	var k := minf(1.0, delta * 3.5)
 	sz = lerpf(sz, tz, k)
 	sx = lerpf(sx, tx, k)
-	var cam_cfg := [Vector2(-64.0, 48.0), Vector2(-46.0, 27.0),
-		Vector2(-84.0, 64.0)]
-	var cc: Vector2 = cam_cfg[clampi(game.opt_camera, 0, 2)]
-	global_position = Vector3(cc.x + sx, cc.y, sz)
-	look_at(Vector3(5.0 + sx, 0.0, sz), Vector3.UP)
+	var mode := clampi(game.opt_camera, 0, 3)
+	var tgt: Vector3
+	var look: Vector3
+	if mode == 3:                          # cámara "detrás" estilo Rugby 25
+		tgt = Vector3(sx * 0.5, 21.0, sz + 30.0)
+		look = Vector3(sx * 0.5, 0.0, sz - 12.0)
+	else:
+		var cam_cfg := [Vector2(-64.0, 48.0), Vector2(-46.0, 27.0),
+			Vector2(-84.0, 64.0)]
+		var cc: Vector2 = cam_cfg[mode]
+		tgt = Vector3(cc.x + sx, cc.y, sz)
+		look = Vector3(5.0 + sx, 0.0, sz)
+	global_position = global_position.lerp(tgt, minf(1.0, delta * 3.0))
+	look_at(look, Vector3.UP)
