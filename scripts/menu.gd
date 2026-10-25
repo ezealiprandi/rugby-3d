@@ -69,7 +69,7 @@ const EN := {
 	"Próxima fecha": "Next fixture",
 	"FECHA": "ROUND",
 	"TABLA URT —": "URT TABLE —",
-	"RESULTADOS": "RESULTS", "Fecha": "Round", "Torneo terminado": "Tournament over",
+	"RESULTADOS": "RESULTS", "GOLEADORES": "TRY SCORERS", "Fecha": "Round", "Torneo terminado": "Tournament over",
 	"Duración del tiempo": "Match half length",
 	"Dificultad IA": "AI difficulty",
 	"Horario": "Time of day", "Clima": "Weather",
@@ -793,6 +793,15 @@ func _fill_table() -> void:
 		t += "\n[color=#f5c542]" + T("Próxima fecha") + ": " + 			RugbyTeams.CLUBS[game.home_idx]["name"] + " vs " + 			RugbyTeams.CLUBS[game.tour_fixture[game.tour_pos]]["name"] + 			"[/color]"
 	else:
 		t += "\n[color=#f5c542]" + T("Torneo terminado") + "[/color]"
+	if not game.tour_scorers.is_empty():
+		t += "\n— " + T("GOLEADORES") + " —\n"
+		var arr := []
+		for k in game.tour_scorers:
+			arr.append([k, game.tour_scorers[k]])
+		arr.sort_custom(func(a, b): return a[1] > b[1])
+		for i in mini(8, arr.size()):
+			var parts: PackedStringArray = arr[i][0].split("·")
+			t += "   %-18s %-4s %d\n" % [parts[0], parts[1], arr[i][1]]
 	if not game.tour_history.is_empty():
 		t += "\n— " + T("RESULTADOS") + " —\n"
 		for i in game.tour_history.size():

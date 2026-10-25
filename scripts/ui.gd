@@ -716,8 +716,7 @@ func lineup_show(h_i: int, a_i: int) -> void:
 		var c: Dictionary = RugbyTeams.CLUBS[ci]
 		var s := ""
 		for i in 15:
-			s += "%2d · %s
-" % [i + 1, RugbyTeams.SQUADS[ci][i]]
+			s += "%2d · %s\n" % [i + 1, RugbyTeams.SQUADS[ci][i]]
 		return s
 	lineup_htitle.text = RugbyTeams.CLUBS[h_i]["name"]
 	lineup_htitle.add_theme_color_override("font_color",

@@ -25,7 +25,8 @@ var field: RugbyField
 # modos de juego: "friendly" | "tournament" | "practice"
 var mode := "friendly"
 var tour_fixture: Array[int] = []
-var tour_history: Array = []        # resultados por fecha
+var tour_history: Array = []
+var tour_scorers := {}            # nombre → {club, tries}        # resultados por fecha
 var sim_log: Array = []             # resultados simulados de la fecha actual
 var tour_pos := 0
 var tour_wins := 0
@@ -386,6 +387,7 @@ func start_match(home: int, away: int, m := "friendly") -> void:
 			tour_losses = 0
 			tour_table.clear()
 			tour_history.clear()
+			tour_scorers.clear()
 			for i in RugbyTeams.CLUBS.size():
 				tour_table.append({"pts": 0, "played": 0, "won": 0,
 					"drawn": 0, "lost": 0, "pf": 0, "pa": 0, "bonus": 0})
@@ -850,6 +852,12 @@ func _on_try(team: int) -> void:
 	ui.commentary(scorer_txt + tries_txt[rng.randi() % tries_txt.size()])
 	if scorer != null:
 		ui.scorer_show(scorer)
+		if mode == "tournament":
+			var k: String = scorer.pname + "·" + String(RugbyTeams.CLUBS[
+				home_idx if scorer.team == 0 else away_idx]["abbr"])
+			if not tour_scorers.has(k):
+				tour_scorers[k] = 0
+			tour_scorers[k] += 1
 	if phase == Phase.REPLAY:
 		ui.show_message("¡¡¡TRY de %s!!! +5 · REPLAY" % _club_name(team), 2.6)
 	else:
