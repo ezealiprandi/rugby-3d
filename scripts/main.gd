@@ -28,6 +28,7 @@ var tour_fixture: Array[int] = []
 var tour_pos := 0
 var tour_wins := 0
 var tour_losses := 0
+var tour_table: Array = []          # tabla de posiciones de los 12 clubes
 
 var home_idx := 0                  # clubes elegidos en el menú
 var away_idx := 1
@@ -285,6 +286,10 @@ func start_match(home: int, away: int, m := "friendly") -> void:
 			tour_pos = 0
 			tour_wins = 0
 			tour_losses = 0
+			tour_table.clear()
+			for i in RugbyTeams.CLUBS.size():
+				tour_table.append({"pts": 0, "played": 0, "won": 0,
+					"drawn": 0, "lost": 0, "pf": 0, "pa": 0, "bonus": 0})
 		away = tour_fixture[tour_pos]
 	away_idx = away
 	_spawn_players()
@@ -526,11 +531,16 @@ func _check_clock() -> void:
 				bk = p.stat_tackles
 		if bt > 0:
 			stats += mvp
+		var table_txt := ""
 		if mode == "tournament":
 			if score[0] > score[1]:
 				tour_wins += 1
-			else:
+			elif score[0] < score[1]:
 				tour_losses += 1
+			_record_result(home_idx, away_idx, score[0], score[1],
+				tries_n[0], tries_n[1])
+			_sim_fecha()
+			table_txt = "\n\n" + _table_text()
 			ui.show_message(
 				"FINAL · %s %d — %d %s · Torneo %dG-%dP%s · R fecha siguiente · M menú"
 				% [_club_name(0), score[0], score[1], _club_name(1),
@@ -538,7 +548,7 @@ func _check_clock() -> void:
 		else:
 			ui.show_message("FINAL · %s %d — %d %s%s · R revancha · M menú" %
 				[_club_name(0), score[0], score[1], _club_name(1), stats], 999.0)
-		ui.show_stats(_build_stats_text(poss_pct))
+		ui.show_stats(_build_stats_text(poss_pct) + table_txt)
 
 
 func _check_boundaries() -> void:
@@ -1221,11 +1231,93 @@ func _resolve_penalty() -> void:
 	phase = Phase.PLAY
 
 
+# puntos reales URT: 4 victoria, 2 empate, bonus por 4+ tries y por perder <8
+func _record_result(h: int, a: int, sh: int, sa: int, th: int, ta: int) -> void:
+	var ht: Dictionary = tour_table[h]
+	var at: Dictionary = tour_table[a]
+	ht.played += 1
+	at.played += 1
+	ht.pf += sh
+	ht.pa += sa
+	at.pf += sa
+	at.pa += sh
+	if sh > sa:
+		ht.won += 1
+		ht.pts += 4
+		at.lost += 1
+	elif sh < sa:
+		at.won += 1
+		at.pts += 4
+		ht.lost += 1
+	else:
+		ht.drawn += 1
+		at.drawn += 1
+		ht.pts += 2
+		at.pts += 2
+	if th >= 4:
+		ht.pts += 1
+		ht.bonus += 1
+	if ta >= 4:
+		at.pts += 1
+		at.bonus += 1
+	if sh > sa and sh - sa < 8:
+		at.pts += 1
+		at.bonus += 1
+	elif sa > sh and sa - sh < 8:
+		ht.pts += 1
+		ht.bonus += 1
+
+
+# simula los otros 5 partidos de la fecha según el rating de cada club
+func _sim_fecha() -> void:
+	var others: Array[int] = []
+	for i in RugbyTeams.CLUBS.size():
+		if i != home_idx and i != away_idx:
+			others.append(i)
+	others.shuffle()
+	for i in range(0, others.size() - 1, 2):
+		var h := others[i]
+		var a := others[i + 1]
+		var rh: float = RugbyTeams.CLUBS[h]["rating"]
+		var ra: float = RugbyTeams.CLUBS[a]["rating"]
+		var edge := (rh - ra) * 12.0
+		var sh := maxi(0, int(17 + edge + rng.randi_range(-11, 11)))
+		var sa := maxi(0, int(17 - edge + rng.randi_range(-11, 11)))
+		_record_result(h, a, sh, sa, int(sh / 7.0), int(sa / 7.0))
+
+
+func _table_order() -> Array:
+	var idx: Array = range(tour_table.size())
+	idx.sort_custom(func(a, b):
+		var ta: Dictionary = tour_table[a]
+		var tb: Dictionary = tour_table[b]
+		if ta.pts != tb.pts:
+			return ta.pts > tb.pts
+		return (ta.pf - ta.pa) > (tb.pf - tb.pa))
+	return idx
+
+
+func _table_text() -> String:
+	var t := "  TABLA URT — FECHA %d\n" % (tour_pos + 1)
+	t += "   #  Club                PJ PG PE PP   PF   PA  Pts\n"
+	var order := _table_order()
+	for i in order.size():
+		var c: int = order[i]
+		var d: Dictionary = tour_table[c]
+		var mark := "▶" if c == home_idx else " "
+		t += "%s %2d  %-19s %2d %2d %2d %2d %4d %4d %4d\n" % [
+			mark, i + 1, RugbyTeams.CLUBS[c]["abbr"], d.played, d.won,
+			d.drawn, d.lost, d.pf, d.pa, d.pts]
+	return t
+
+
 func _tour_next() -> void:
 	tour_pos += 1
 	if tour_pos >= tour_fixture.size():
-		var res := "¡TORNEO TERMINADO! %s: %d ganados · %d perdidos" % [
-			_club_name(0), tour_wins, tour_losses]
+		var champ: int = _table_order()[0]
+		var res := "¡TORNEO TERMINADO!\n\nCAMPEÓN: %s\n\n%s\nTu posición: #%d" % [
+			RugbyTeams.CLUBS[champ]["name"], _table_text(),
+			_table_order().find(home_idx) + 1]
 		return_to_menu()
 		menu.flash_result(res)
 		return
