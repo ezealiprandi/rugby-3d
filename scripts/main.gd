@@ -395,6 +395,7 @@ func start_match(home: int, away: int, m := "friendly") -> void:
 	away_idx = away
 	ui.show_vs(home_idx, away_idx)
 	ui.tv_show(true)
+	ui.motm_hide()
 	ui.presenter_show(home_idx, away_idx)
 	ui.lineup_show(home_idx, away_idx)
 	ui.flash_hint("WASD moverse · Q/E pase · F placaje · K/C/V/Z patadas · Shift sprint", 5.0)
@@ -749,6 +750,15 @@ func _check_clock() -> void:
 				[_club_name(0), score[0], score[1], _club_name(1), stats], 999.0)
 		if celebrate_all_team < 0:
 			ui.show_stats(_build_stats_text(poss_pct) + table_txt)
+			var mvp_p: RugbyPlayer = null
+			var mvp_s := -1.0
+			for p in players:
+				var s := p.stat_tries * 10.0 + p.stat_tackles * 1.0 					+ p.stat_metros * 0.08
+				if s > mvp_s:
+					mvp_s = s
+					mvp_p = p
+			if mvp_p != null and mvp_s > 0.5:
+				ui.motm_show(mvp_p)
 
 
 func _check_boundaries() -> void:

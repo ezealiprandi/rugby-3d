@@ -55,6 +55,10 @@ var sb_acard: ColorRect
 var ht_panel: PanelContainer
 var ht_lbl: Label
 var ht_t := 0.0
+var motm_panel: PanelContainer
+var motm_name: Label
+var motm_stats: Label
+var motm_bar: ColorRect
 var lineup_panel: CenterContainer
 var lineup_home: Label
 var lineup_away: Label
@@ -775,6 +779,53 @@ func _build_broadcast() -> void:
 	ht_panel.visible = false
 	add_child(ht_panel)
 
+	# jugador del partido (arriba al centro, durante el panel final)
+	motm_panel = PanelContainer.new()
+	var msb := StyleBoxFlat.new()
+	msb.bg_color = Color(0.01, 0.03, 0.02, 0.92)
+	msb.border_color = Color(1.0, 0.75, 0.15, 0.9)
+	msb.border_width_top = 3
+	msb.border_width_bottom = 3
+	motm_panel.add_theme_stylebox_override("panel", msb)
+	motm_panel.set_anchors_preset(Control.PRESET_CENTER_TOP)
+	motm_panel.offset_left = -280
+	motm_panel.offset_right = 280
+	motm_panel.offset_top = 90
+	motm_panel.offset_bottom = 190
+	var mhb := HBoxContainer.new()
+	mhb.add_theme_constant_override("separation", 0)
+	motm_panel.add_child(mhb)
+	motm_bar = ColorRect.new()
+	motm_bar.custom_minimum_size = Vector2(8, 0)
+	mhb.add_child(motm_bar)
+	var mmc := MarginContainer.new()
+	mmc.add_theme_constant_override("margin_left", 18)
+	mmc.add_theme_constant_override("margin_right", 18)
+	mmc.add_theme_constant_override("margin_top", 10)
+	mmc.add_theme_constant_override("margin_bottom", 10)
+	mhb.add_child(mmc)
+	var mvb := VBoxContainer.new()
+	mvb.add_theme_constant_override("separation", 2)
+	mmc.add_child(mvb)
+	var mt := Label.new()
+	mt.text = "★ JUGADOR DEL PARTIDO ★"
+	mt.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	mt.add_theme_font_size_override("font_size", 15)
+	mt.add_theme_color_override("font_color", Color(1.0, 0.75, 0.15))
+	mvb.add_child(mt)
+	motm_name = Label.new()
+	motm_name.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	motm_name.add_theme_font_size_override("font_size", 24)
+	motm_name.add_theme_color_override("font_color", Color(0.97, 0.97, 0.93))
+	mvb.add_child(motm_name)
+	motm_stats = Label.new()
+	motm_stats.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	motm_stats.add_theme_font_size_override("font_size", 15)
+	motm_stats.add_theme_color_override("font_color", Color(0.75, 0.8, 0.72))
+	mvb.add_child(motm_stats)
+	motm_panel.visible = false
+	add_child(motm_panel)
+
 
 func tv_show(on: bool) -> void:
 	tv_bug.visible = on
@@ -825,6 +876,23 @@ func ht_show(text: String) -> void:
 	ht_lbl.text = text
 	ht_panel.visible = true
 	ht_t = 6.0
+
+
+func motm_show(p: RugbyPlayer) -> void:
+	var club: Dictionary = RugbyTeams.CLUBS[
+		p.game.home_idx if p.team == 0 else p.game.away_idx]
+	motm_bar.color = club["primary"]
+	motm_name.text = "#%d %s · %s" % [p.index + 1, p.pname, club["abbr"]]
+	motm_stats.text = "%d tries · %d placajes · %d m corridos" % [
+		p.stat_tries, p.stat_tackles, int(p.stat_metros)]
+	motm_panel.visible = true
+	motm_panel.modulate.a = 0.0
+	var tw := create_tween()
+	tw.tween_property(motm_panel, "modulate:a", 1.0, 0.5)
+
+
+func motm_hide() -> void:
+	motm_panel.visible = false
 
 
 func scorer_show(p: RugbyPlayer) -> void:
