@@ -351,7 +351,7 @@ func start_match(home: int, away: int, m := "friendly") -> void:
 	if field != null:
 		field.set_daytime(tod)
 		field.set_weather(weather == "rain")
-	first_kicker = 1   # el equipo del jugador recibe el saque inicial
+	first_kicker = rng.randi() % 2   # moneda al aire
 	if sfx_crowd.stream != null and not sfx_crowd.playing:
 		sfx_crowd.play()
 	if mode == "tournament":
@@ -381,6 +381,8 @@ func start_match(home: int, away: int, m := "friendly") -> void:
 			RugbyTeams.CLUBS[away_idx]["primary"])
 	_spawn_players()
 	reset_for_kickoff(first_kicker)
+	ui.commentary("Moneda al aire: %s pone la pelota en juego"
+		% _club_name(first_kicker))
 	var tod_msg := ""
 	match tod:
 		"day": tod_msg = "Tarde de sol en Tucumán"
@@ -599,7 +601,12 @@ func _check_clock() -> void:
 		phase = Phase.BETWEEN
 		phase_t = 3.0
 		_whistle()
-		ui.show_message("¡Entretiempo! Cambian de campo", 2.8)
+		var htot: float = poss_t[0] + poss_t[1]
+		var hposs := ""
+		if htot > 1.0:
+			hposs = " · Posesión %d%%-%d%%" % [
+				int(poss_t[0] / htot * 100), int(poss_t[1] / htot * 100)]
+		ui.show_message("¡Entretiempo! Cambian de campo" + hposs, 2.8)
 	else:
 		phase = Phase.END
 		_whistle()
@@ -759,6 +766,14 @@ func _on_try(team: int) -> void:
 		sfx_cheer.play()
 	_confetti(scorer.global_position,
 		RugbyTeams.CLUBS[home_idx if team == 0 else away_idx]["primary"])
+	var scorer_txt := ""
+	if scorer != null:
+		scorer_txt = "#%d · " % (scorer.index + 1)
+	var tries_txt := ["¡Qué corrida! Apoya entre los palos",
+		"¡Rompe la línea y se va al try!",
+		"¡No lo paró nadie en el cierre!",
+		"Apoyo perfecto — try colectivo"]
+	ui.commentary(scorer_txt + tries_txt[rng.randi() % tries_txt.size()])
 	if phase == Phase.REPLAY:
 		ui.show_message("¡¡¡TRY de %s!!! +5 · REPLAY" % _club_name(team), 2.6)
 	else:
@@ -1079,6 +1094,7 @@ func _resolve_breakdown() -> void:
 			phase = Phase.PLAY
 			jackal_pressed = false
 			ui.flash_hint("¡ROBO EN EL RUCK de %s!" % _club_name(1 - ruck_team))
+			ui.commentary("¡El jackal mete las manos y se queda con todo!")
 			return
 	jackal_pressed = false
 	# penal de ruck para el equipo atacante (10%)
@@ -1233,6 +1249,7 @@ func _start_maul(team: int) -> void:
 	phase = Phase.MAUL
 	phase_t = 2.0
 	ui.flash_hint("¡MAUL! Empuja el pack")
+	ui.commentary("El pack empuja como una sola unidad")
 
 
 func _update_maul(delta: float) -> void:

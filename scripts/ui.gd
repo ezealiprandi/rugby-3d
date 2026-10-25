@@ -12,6 +12,8 @@ var _abbr_h := ""
 var _abbr_a := ""
 var msg_lbl: Label
 var hint_lbl: Label
+var comm_lbl: Label
+var comm_t := 0.0
 var info_lbl: Label
 var pause_lbl: Label
 var pause_menu: Control
@@ -85,6 +87,14 @@ func _ready() -> void:
 	info_lbl.offset_top = -34
 	info_lbl.offset_bottom = -6
 	info_lbl.add_theme_color_override("font_color", Color(1, 1, 1, 0.75))
+
+	# comentario estilo transmisión (lower-third, arriba del info)
+	comm_lbl = _mk_label(17)
+	comm_lbl.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+	comm_lbl.offset_top = -64
+	comm_lbl.offset_bottom = -40
+	comm_lbl.add_theme_color_override("font_color", Color(0.75, 0.82, 0.9, 0.9))
+	comm_lbl.modulate.a = 0.0
 
 	_build_conversion_ui()
 	_build_stats_panel()
@@ -218,6 +228,10 @@ func _process(delta: float) -> void:
 			var ci := pause_btns.find(get_viewport().gui_get_focus_owner())
 			ci = (ci + pd + pause_btns.size()) % pause_btns.size() if ci >= 0 else 0
 			pause_btns[ci].grab_focus()
+	if comm_t > 0.0:
+		comm_t -= delta
+		if comm_t <= 0.0:
+			comm_lbl.modulate.a = 0.0
 	if msg_t > 0.0:
 		msg_t -= delta
 		if msg_t <= 0.0:
@@ -296,6 +310,13 @@ func flash_hint(text: String, dur := 1.2) -> void:
 	hint_lbl.text = text
 	hint_lbl.modulate.a = 1.0
 	hint_t = dur
+
+
+# línea de comentario sutil, estilo relator de TV
+func commentary(text: String, dur := 3.6) -> void:
+	comm_lbl.text = text
+	comm_lbl.modulate.a = 1.0
+	comm_t = dur
 
 
 func set_info(text: String) -> void:
