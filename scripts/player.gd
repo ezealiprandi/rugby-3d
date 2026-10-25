@@ -225,6 +225,10 @@ func _desired_velocity() -> Vector3:
 			return _seek(t, AI_JOG * 1.1) if t != global_position else Vector3.ZERO
 		RugbyGame.Phase.PLAY, RugbyGame.Phase.BREAKDOWN:
 			pass
+		RugbyGame.Phase.MAUL:
+			return _maul_ai()
+		RugbyGame.Phase.PENALTY:
+			return _penalty_ai()
 		_:
 			return Vector3.ZERO
 	if game.controlled == self:
@@ -298,6 +302,36 @@ func _seek(target: Vector3, sp: float) -> Vector3:
 
 func _hold() -> Vector3:
 	return _seek(hold_pos, AI_JOG * 0.6)
+
+
+func _maul_ai() -> Vector3:
+	var c := game.ball.carrier
+	if c == null:
+		return Vector3.ZERO
+	var d := game.maul_dir
+	if team == game.maul_team:
+		if c == self:
+			return Vector3.ZERO        # al portador lo mueve el juego
+		if is_forward() and _team_rank(c.global_position) < 5:
+			return _seek(c.global_position -
+				Vector3((index % 3) - 1.0, 0.0, d * (1.0 + index % 2)), AI_JOG)
+		return _hold()
+	# los forwards rivales presionan el maul de frente
+	if is_forward() and _team_rank(c.global_position) < 3:
+		return _seek(c.global_position + Vector3(0.0, 0.0, d * 1.2), AI_JOG)
+	return _hold()
+
+
+func _penalty_ai() -> Vector3:
+	# los defensores retroceden 10m respetando el penal
+	if team != game.pending_team:
+		var d := float(game.attack_dir[game.pending_team])
+		var t := game.pending_spot - Vector3(0.0, 0.0, d * 10.0)
+		t.x = global_position.x * 0.6
+		return _seek(t, AI_JOG)
+	if is_nine():
+		return _seek(game.pending_spot, AI_CHASE)
+	return _hold()
 
 
 func _carrier_ai() -> Vector3:
@@ -398,6 +432,8 @@ func _try_pickup() -> void:
 	if dxz < r:
 		if b.pass_from != null and b.pass_from.team == team and self != game.controlled:
 			var chance := 0.1 if b.pass_from != game.controlled else 0.04
+			if game.weather == "rain":
+				chance *= 1.8      # pelota mojada
 			if game.rng.randf() < chance:
 				game.on_knock_on(self)
 				return

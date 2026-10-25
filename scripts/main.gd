@@ -11,7 +11,7 @@ const TACKLE_RANGE := 1.35
 const PICKUP_RANGE := 1.4
 
 enum Phase { MENU, KICKOFF, PLAY, BREAKDOWN, SCRUM, LINEOUT, CONVERSION,
-	DROPOUT, PENALTY, SCORE, BETWEEN, END }
+	DROPOUT, PENALTY, SCORE, BETWEEN, END, REPLAY, MAUL }
 
 var players: Array[RugbyPlayer] = []
 var ball: RugbyBall
@@ -20,6 +20,7 @@ var cam: RugbyCam
 var ui: RugbyUI
 var menu: RugbyMenu
 var referee: RugbyReferee
+var field: RugbyField
 
 # modos de juego: "friendly" | "tournament" | "practice"
 var mode := "friendly"
@@ -72,6 +73,22 @@ var drop_prev_z := 0.0
 var pen_count := [0, 0]
 var celebrating: RugbyPlayer = null
 
+# replay broadcast del try
+const REPLAY_LEN := 150                # frames grabados (~2.5s)
+var replay_buf: Array = []
+var replay_i := 0
+
+# maul
+var maul_team := -1
+var maul_dir := 1.0
+var pending_maul_team := -1   # se arma cuando el catcher agarra el lineout
+
+# clima y estadísticas
+var weather := "clear"
+var poss_t := [0.0, 0.0]
+var tries_n := [0, 0]
+var tackles_n := [0, 0]
+
 # audio
 var sfx_whistle: AudioStreamPlayer
 var sfx_crowd: AudioStreamPlayer
@@ -82,7 +99,7 @@ func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	rng.randomize()
 	_register_input()
-	RugbyField.build(self)
+	field = RugbyField.build(self)
 	_spawn_ball()
 	ball.global_position = Vector3(0.0, 0.6, 0.0)
 	cam = RugbyCam.new()
@@ -209,6 +226,15 @@ func start_match(home: int, away: int, m := "friendly") -> void:
 	pen_count = [0, 0]
 	drop_goal_team = -1
 	celebrating = null
+	poss_t = [0.0, 0.0]
+	tries_n = [0, 0]
+	tackles_n = [0, 0]
+	pending_maul_team = -1
+	maul_team = -1
+	replay_buf.clear()
+	weather = "rain" if rng.randf() < 0.3 else "clear"
+	if field != null:
+		field.set_weather(weather == "rain")
 	first_kicker = 1   # el equipo del jugador recibe el saque inicial
 	if sfx_crowd.stream != null and not sfx_crowd.playing:
 		sfx_crowd.play()
@@ -229,6 +255,8 @@ func start_match(home: int, away: int, m := "friendly") -> void:
 	away_idx = away
 	_spawn_players()
 	reset_for_kickoff(first_kicker)
+	if weather == "rain":
+		ui.show_message("🌧 Lluvia en Tucumán — la pelota resbala", 3.0)
 	if mode == "tournament":
 		ui.show_message("TORNEO URT · Fecha %d/%d · %s vs %s" %
 			[tour_pos + 1, tour_fixture.size(), _club_name(0), _club_name(1)], 3.0)
@@ -338,9 +366,23 @@ func _process(delta: float) -> void:
 				_do_kickoff()
 		Phase.PLAY:
 			clock += delta
+			_record_frame()
+			var poss_team: int = ball.carrier.team if ball.carrier != null \
+				else ball.last_touch_team
+			if poss_team >= 0:
+				poss_t[poss_team] += delta
+			if pending_maul_team >= 0 and ball.carrier != null:
+				if ball.carrier.team == pending_maul_team:
+					_start_maul(pending_maul_team)
+				pending_maul_team = -1
 			_check_clock()
 			_check_boundaries()
+		Phase.REPLAY:
+			_replay_step()
+		Phase.MAUL:
+			_update_maul(delta)
 		Phase.BREAKDOWN:
+			_record_frame()
 			phase_t -= delta
 			if phase_t <= 0.0:
 				_resolve_breakdown()
@@ -398,18 +440,25 @@ func _check_clock() -> void:
 	else:
 		phase = Phase.END
 		_whistle()
+		var total: float = poss_t[0] + poss_t[1]
+		var poss_pct := ""
+		if total > 1.0:
+			poss_pct = " · Posesión %d%%-%d%%" % [
+				int(poss_t[0] / total * 100), int(poss_t[1] / total * 100)]
+		var stats := "%s · Tries %d-%d · Placajes %d-%d" % [
+			poss_pct, tries_n[0], tries_n[1], tackles_n[0], tackles_n[1]]
 		if mode == "tournament":
 			if score[0] > score[1]:
 				tour_wins += 1
 			else:
 				tour_losses += 1
 			ui.show_message(
-				"FINAL · %s %d — %d %s · Torneo %dG-%dP · R fecha siguiente · M menú"
+				"FINAL · %s %d — %d %s · Torneo %dG-%dP%s · R fecha siguiente · M menú"
 				% [_club_name(0), score[0], score[1], _club_name(1),
-				tour_wins, tour_losses], 999.0)
+				tour_wins, tour_losses, stats], 999.0)
 		else:
-			ui.show_message("FINAL · %s %d — %d %s · R revancha · M menú" %
-				[_club_name(0), score[0], score[1], _club_name(1)], 999.0)
+			ui.show_message("FINAL · %s %d — %d %s%s · R revancha · M menú" %
+				[_club_name(0), score[0], score[1], _club_name(1), stats], 999.0)
 
 
 func _check_boundaries() -> void:
@@ -458,14 +507,45 @@ func _check_boundaries() -> void:
 			_event_dropout(def_team, "¡Pelota muerta! Drop-out de 22 para %s" % _club_name(def_team))
 
 
+func _record_frame() -> void:
+	var f := []
+	for p in players:
+		f.append(p.global_position)
+	for p in players:
+		f.append(p.visual.rotation.y if p.visual != null else 0.0)
+	f.append(ball.global_position)
+	replay_buf.append(f)
+	if replay_buf.size() > REPLAY_LEN:
+		replay_buf.pop_front()
+
+
+func _replay_step() -> void:
+	if replay_i >= replay_buf.size() - 1:
+		phase = Phase.SCORE
+		phase_t = 2.0
+		return
+	var f: Array = replay_buf[replay_i]
+	replay_i += 1
+	for i in players.size():
+		players[i].global_position = f[i]
+		if players[i].visual != null:
+			players[i].visual.rotation.y = f[players.size() + i]
+	ball.global_position = f[players.size() * 2]
+
+
 func _on_try(team: int) -> void:
 	score[team] += 5
+	tries_n[team] += 1
 	last_scoring_team = team
 	conv_spot_x = ball.carrier.global_position.x
-	phase = Phase.SCORE
-	phase_t = 2.0
 	var scorer := ball.carrier
 	celebrating = scorer
+	if replay_buf.size() > 30:
+		phase = Phase.REPLAY
+		replay_i = 0
+	else:
+		phase = Phase.SCORE
+		phase_t = 2.0
 	ball.release()
 	if scorer != null:
 		ball.global_position = scorer.global_position + Vector3(0, 0.3, 0)
@@ -475,7 +555,10 @@ func _on_try(team: int) -> void:
 	_whistle()
 	if sfx_cheer.stream != null:
 		sfx_cheer.play()
-	ui.show_message("¡¡¡TRY de %s!!! +5" % _club_name(team), 2.2)
+	if phase == Phase.REPLAY:
+		ui.show_message("¡¡¡TRY de %s!!! +5 · REPLAY" % _club_name(team), 2.6)
+	else:
+		ui.show_message("¡¡¡TRY de %s!!! +5" % _club_name(team), 2.2)
 
 
 # ─── Patada a los palos estilo Rugby 25 (conversión +2 · penal +3) ──────────
@@ -626,6 +709,7 @@ func _conv_execute() -> void:
 func on_tackle(tackler: RugbyPlayer, carrier: RugbyPlayer) -> void:
 	if phase != Phase.PLAY or carrier.tackled > 0.0:
 		return
+	tackles_n[tackler.team] += 1
 	tackler.tackled = 1.2
 	carrier.tackled = 1.2
 	pending_spot = carrier.global_position
@@ -729,7 +813,45 @@ func _resolve_lineout() -> void:
 		ball.pass_from = null   # sin knock-on en el lineout
 	else:
 		ball.set_carrier(_nearest(catch_team, pending_spot, null, 999.0))
+	# si agarra limpio, se arma el maul y los forwards empujan
+	pending_maul_team = catch_team if rng.randf() < 0.7 else -1
 	phase = Phase.PLAY
+
+
+func _start_maul(team: int) -> void:
+	maul_team = team
+	maul_dir = float(attack_dir[team])
+	phase = Phase.MAUL
+	phase_t = 2.0
+	ui.flash_hint("¡MAUL! Empuja el pack")
+
+
+func _update_maul(delta: float) -> void:
+	phase_t -= delta
+	var c := ball.carrier
+	if c == null or c.team != maul_team:
+		phase = Phase.PLAY
+		return
+	# el maul avanza ~2.4 m/s empujado por los forwards
+	c.global_position.z += maul_dir * 2.4 * delta
+	c.global_position.x = lerpf(c.global_position.x, 0.0, delta * 0.3)
+	c.global_position.x = clampf(c.global_position.x,
+		-FIELD_HALF_W + 1.0, FIELD_HALF_W - 1.0)
+	# ¿el drive llegó al in-goal? try de maul
+	if c.global_position.z * maul_dir > TRY_Z:
+		_on_try(maul_team)
+		return
+	if phase_t <= 0.0:
+		if rng.randf() < 0.15:
+			# colapso ilegal: scrum para la defensa
+			_event_scrum(1 - maul_team, c.global_position,
+				"¡Maul colapsado! Scrum para %s" % _club_name(1 - maul_team))
+			return
+		# sale el 9 con la pelota
+		var nine := players[8 + maul_team * TEAM_SIZE]
+		if nine.tackled <= 0.0 and nine.sin_bin_t <= 0.0:
+			ball.set_carrier(nine)
+		phase = Phase.PLAY
 
 
 func _event_penalty(team: int, spot: Vector3, msg: String) -> void:

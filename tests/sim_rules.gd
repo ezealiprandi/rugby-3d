@@ -49,6 +49,12 @@ func _process(_delta: float) -> bool:
 		3:
 			if game.phase == RugbyGame.Phase.PLAY:
 				print("> lineout ok")
+				game.ball.set_carrier(game.players[4])   # lock del team0
+				game._start_maul(0)
+				st = 14
+		14:
+			if game.phase == RugbyGame.Phase.PLAY:
+				print("> maul ok")
 				game._event_dropout(0, "TEST dropout")
 				st = 4
 		4:

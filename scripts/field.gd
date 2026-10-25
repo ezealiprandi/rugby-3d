@@ -8,6 +8,10 @@ const TRY := 50.0
 const DEAD := 60.0
 const WHITE := Color(0.95, 0.95, 0.92)
 
+var env_node: WorldEnvironment
+var sun_node: DirectionalLight3D
+var rain: GPUParticles3D
+
 static func build(parent: Node3D) -> RugbyField:
 	var f := RugbyField.new()
 	parent.add_child(f)
@@ -59,6 +63,7 @@ func _build_env() -> void:
 	env.fog_light_color = Color(0.75, 0.68, 0.6)
 	env.fog_light_energy = 0.5
 	we.environment = env
+	env_node = we
 	add_child(we)
 
 	var sun := DirectionalLight3D.new()
@@ -68,7 +73,53 @@ func _build_env() -> void:
 	sun.directional_shadow_max_distance = 190.0
 	sun.light_energy = 1.1
 	sun.light_color = Color(1.0, 0.92, 0.8)             # luz cálida de atardecer
+	sun_node = sun
 	add_child(sun)
+
+
+# clima: lluvia oscurece el cielo, baja el sol y agrega partículas
+func set_weather(is_rain: bool) -> void:
+	if env_node != null:
+		env_node.environment.fog_density = 0.009 if is_rain else 0.0035
+		var psm := env_node.environment.sky.sky_material as ProceduralSkyMaterial
+		if psm != null:
+			psm.sky_top_color = Color(0.28, 0.3, 0.34) if is_rain \
+				else Color(0.16, 0.3, 0.62)
+			psm.sky_horizon_color = Color(0.45, 0.47, 0.5) if is_rain \
+				else Color(0.75, 0.62, 0.5)
+	if sun_node != null:
+		sun_node.light_energy = 0.55 if is_rain else 1.1
+	if is_rain:
+		if rain == null:
+			_make_rain()
+		rain.emitting = true
+	elif rain != null:
+		rain.emitting = false
+
+
+func _make_rain() -> void:
+	rain = GPUParticles3D.new()
+	rain.amount = 2500
+	rain.lifetime = 1.1
+	rain.visibility_aabb = AABB(Vector3(-60, -5, -70), Vector3(120, 40, 140))
+	var pm := ParticleProcessMaterial.new()
+	pm.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
+	pm.emission_box_extents = Vector3(58.0, 1.0, 68.0)
+	pm.direction = Vector3(0.12, -1.0, 0.0)
+	pm.initial_velocity_min = 22.0
+	pm.initial_velocity_max = 26.0
+	pm.gravity = Vector3.ZERO
+	rain.process_material = pm
+	rain.position = Vector3(0.0, 24.0, 0.0)
+	var quad := QuadMesh.new()
+	quad.size = Vector2(0.04, 0.7)
+	var rain_mat := StandardMaterial3D.new()
+	rain_mat.albedo_color = Color(0.7, 0.78, 0.85, 0.45)
+	rain_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	rain_mat.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
+	quad.material = rain_mat
+	rain.draw_pass_1 = quad
+	add_child(rain)
 
 
 func _build_ground() -> void:
