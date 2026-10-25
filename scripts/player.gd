@@ -32,6 +32,7 @@ var stat_metros := 0.0
 var facing := Vector3(0, 0, 1)
 var wide_mem := 1.0                   # último lado ancho visto
 var pass_anim_t := 0.0                # gesto del pase
+var try_dive_t := 0.0                 # palomita al apoyar el try
 var hold_pos := Vector3.ZERO
 var col_primary := Color(0.2, 0.4, 0.9)
 var col_secondary := Color(0.1, 0.1, 0.1)
@@ -287,6 +288,8 @@ func _physics_process(delta: float) -> void:
 		surge_t -= delta
 	if pass_anim_t > 0.0:
 		pass_anim_t -= delta
+	if try_dive_t > 0.0:
+		try_dive_t -= delta
 		var sd := Vector3(0.0, 0.0, float(game.attack_dir[team]))
 		velocity.x = sd.x * 8.5
 		velocity.z = sd.z * 8.5
@@ -444,7 +447,7 @@ func _ruck_ai() -> Vector3:
 	if is_forward() and _team_rank(spot) < 2:
 		return _seek(spot + Vector3(0, 0, d * 0.8), AI_CHASE)
 	var lane := -28.0 + index * 4.0
-	var behind := spot - Vector3(0, 0, d * 3.0)
+	var behind := spot + Vector3(0, 0, d * 3.0)
 	return _seek(Vector3(clampf(lane, -30, 30), 0.0, behind.z), AI_JOG)
 
 
@@ -609,6 +612,8 @@ func _support_ai() -> Vector3:
 
 
 func _defense_ai() -> Vector3:
+	if game.settle_t > 0.0:
+		return _hold()
 	var c := game.ball.carrier
 	var cdir := float(game.attack_dir[c.team])
 	var rank := _team_rank(c.global_position)
@@ -622,7 +627,7 @@ func _defense_ai() -> Vector3:
 	# presion: los dos mas cerca van al portador
 	if rank < 3:
 		return _seek(c.global_position, AI_CHASE * 1.08 * rating * speed_mult)
-	var offside_z := c.global_position.z - cdir * 1.4
+	var offside_z := c.global_position.z + cdir * 3.0   # entre pelota y su línea
 	# guards del ruck: forwards cubriendo los bordes del breakdown
 	if is_forward() and rank < 5:
 		var gx := clampf(c.global_position.x +
@@ -632,7 +637,7 @@ func _defense_ai() -> Vector3:
 	# fullback: cobertura profunda para las patadas
 	if index == 14:
 		return _seek(Vector3(c.global_position.x * 0.5, 0.0,
-			clampf(c.global_position.z - cdir * 20.0, -54.0, 54.0)),
+			clampf(c.global_position.z + cdir * 20.0, -54.0, 54.0)),
 			AI_JOG * speed_mult)
 	# linea defensiva chata sobre el offside, corriendose hacia el balon
 	var lane := lerpf(-30.0, 30.0, index / 14.0)
@@ -864,6 +869,14 @@ func _update_visual(delta: float, h_speed: float) -> void:
 		arm_l.rotation.x = lerpf(arm_l.rotation.x, -0.9, delta * 10.0)
 		arm_r.rotation.x = lerpf(arm_r.rotation.x, 0.9, delta * 10.0)
 		visual.rotation.x = lerpf(visual.rotation.x, 0.18, delta * 10.0)
+		return
+	if try_dive_t > 0.0:
+		visual.rotation.x = lerpf(visual.rotation.x, 1.5, delta * 10.0)
+		visual.position.y = lerpf(visual.position.y, 0.1, delta * 10.0)
+		arm_l.rotation.x = lerpf(arm_l.rotation.x, -2.6, delta * 12.0)
+		arm_r.rotation.x = lerpf(arm_r.rotation.x, -2.6, delta * 12.0)
+		leg_l.rotation.x = lerpf(leg_l.rotation.x, 0.3, delta * 8.0)
+		leg_r.rotation.x = lerpf(leg_r.rotation.x, -0.2, delta * 8.0)
 		return
 	if dive_t > 0.0:
 		visual.rotation.x = lerpf(visual.rotation.x, -1.5, delta * 14.0)

@@ -30,7 +30,7 @@ func clear_override() -> void:
 func _process(delta: float) -> void:
 	if game == null or game.ball == null:
 		return
-	if game.phase == RugbyGame.Phase.MENU:
+	if game.phase == RugbyGame.Phase.MENU or game.phase == RugbyGame.Phase.PRESENT:
 		orbit += delta * 0.1
 		global_position = Vector3(sin(orbit) * 62.0, 34.0, cos(orbit) * 62.0)
 		look_at(Vector3(0.0, 0.0, 0.0), Vector3.UP)
@@ -55,5 +55,8 @@ func _process(delta: float) -> void:
 	var k := minf(1.0, delta * 3.5)
 	sz = lerpf(sz, tz, k)
 	sx = lerpf(sx, tx, k)
-	global_position = Vector3(-64.0 + sx, 48.0, sz)
+	var cam_cfg := [Vector2(-64.0, 48.0), Vector2(-46.0, 27.0),
+		Vector2(-84.0, 64.0)]
+	var cc: Vector2 = cam_cfg[clampi(game.opt_camera, 0, 2)]
+	global_position = Vector3(cc.x + sx, cc.y, sz)
 	look_at(Vector3(5.0 + sx, 0.0, sz), Vector3.UP)

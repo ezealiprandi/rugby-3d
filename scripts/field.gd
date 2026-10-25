@@ -16,6 +16,7 @@ var crowd_mm: MultiMesh = null       # hinchada (para teñir de colores del club
 var crowd_palette: Array = []
 var crowd_pos: Array[Vector3] = []   # posiciones base para la ola
 var flag_mats: Array = []            # banderas (se tiñen por partido)
+var screen_mats: Array = []          # pantallas gigantes del estadio
 var wave_t := 0.0
 var wave_amp := 0.0                  # sube a 1.0 en un try
 
@@ -61,6 +62,7 @@ func _build() -> void:
 	_build_floodlights()
 	_build_crowd()
 	_build_flags()
+	_build_screens()
 	_build_photographers()
 
 
@@ -393,11 +395,34 @@ func _build_surroundings() -> void:
 	# pared baja del lado de la cámara
 	_add_box(Vector3(-46.0, 1.5, 0.0), Vector3(3.0, 3.0, 130.0), concrete)
 
-	# bancos de suplentes (lado de la cámara, bajos)
+	# bancos de suplentes con techo (dugouts, lado de la cámara)
 	var bench := _mat(Color(0.7, 0.7, 0.72), 0.8, true)
 	for s in [-1.0, 1.0]:
 		_add_box(Vector3(-40.0, 0.5, s * 18.0), Vector3(2.0, 1.0, 8.0), bench)
 		_add_box(Vector3(-40.8, 1.1, s * 18.0), Vector3(0.4, 1.2, 8.0), bench)
+		_add_box(Vector3(-40.6, 2.5, s * 18.0), Vector3(3.0, 0.15, 9.0), roof)
+		_add_box(Vector3(-42.0, 1.3, s * 18.0), Vector3(0.15, 2.6, 9.0), roof)
+
+	# banderines de esquina
+	var corner_mat := _mat(Color(1.0, 0.55, 0.1), 0.7)
+	for sx in [-1.0, 1.0]:
+		for sz2 in [-1.0, 1.0]:
+			var flag := MeshInstance3D.new()
+			var fm2 := PrismMesh.new()
+			fm2.size = Vector3(0.05, 0.4, 0.3)
+			flag.mesh = fm2
+			flag.material_override = corner_mat
+			flag.position = Vector3(sx * (W - 0.3), 1.35, sz2 * (TRY - 0.3))
+			add_child(flag)
+			var cpole := MeshInstance3D.new()
+			var cpm := CylinderMesh.new()
+			cpm.top_radius = 0.025
+			cpm.bottom_radius = 0.025
+			cpm.height = 1.4
+			cpole.mesh = cpm
+			cpole.material_override = _mat(Color(0.9, 0.9, 0.9))
+			cpole.position = Vector3(sx * (W - 0.3), 0.7, sz2 * (TRY - 0.3))
+			add_child(cpole)
 
 	# logo central de la URT
 	var ring := MeshInstance3D.new()
@@ -615,6 +640,25 @@ func _build_flags() -> void:
 		add_child(flag)
 
 
+# pantallas gigantes en los fondos, tintadas con los clubes del partido
+func _build_screens() -> void:
+	for sz2 in [-1.0, 1.0]:
+		var sm := StandardMaterial3D.new()
+		sm.albedo_color = Color(0.2, 0.2, 0.25)
+		sm.emission_enabled = true
+		sm.emission = Color(0.2, 0.2, 0.25)
+		sm.emission_energy_multiplier = 1.6
+		screen_mats.append(sm)
+		var scr := MeshInstance3D.new()
+		var q := QuadMesh.new()
+		q.size = Vector2(9.0, 4.5)
+		scr.mesh = q
+		scr.material_override = sm
+		scr.position = Vector3(-8.0, 10.5, sz2 * 82.0)
+		scr.rotation.y = 0.0 if sz2 > 0.0 else PI
+		add_child(scr)
+
+
 # ola permanente sutil; crowd_surge() la dispara en los tries
 func _process(delta: float) -> void:
 	if crowd_mm == null or crowd_pos.is_empty():
@@ -638,6 +682,10 @@ func crowd_surge() -> void:
 func tint_crowd(home_c: Color, away_c: Color) -> void:
 	for i in flag_mats.size():
 		flag_mats[i].albedo_color = home_c if i % 2 == 0 else away_c
+	for i in screen_mats.size():
+		var sc: Color = home_c if i == 0 else away_c
+		screen_mats[i].albedo_color = sc
+		screen_mats[i].emission = sc
 	if crowd_mm == null:
 		return
 	var rng := RandomNumberGenerator.new()

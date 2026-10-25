@@ -73,6 +73,7 @@ const EN := {
 	"Aleatorio": "Random", "Día": "Day", "Atardecer": "Sunset", "Noche": "Night",
 	"Despejado": "Clear", "Lluvia": "Rain",
 	"Calidad gráfica": "Graphics quality", "Baja": "Low", "Media": "Medium",
+	"Cámara": "Camera", "Cercana": "Close", "Lejana": "Far",
 	"Alta": "High",
 	"Pantalla completa": "Fullscreen", "VSync": "VSync",
 	"Sonido": "Sound", "Volumen": "Volume", "Sí": "Yes", "No": "No",
@@ -372,7 +373,7 @@ func _ready() -> void:
 	content_box.add_child(opt_box)
 	var opt_layout: Array = [
 		"PARTIDO", 0, 1, 2, 3,
-		"GRÁFICOS", 4, 5, 6,
+		"GRÁFICOS", 4, 5, 6, 13,
 		"AUDIO", 7, 8,
 		"CONTROLES", 9,
 		"ACCESIBILIDAD", 10, 11,
@@ -807,6 +808,7 @@ func _opt_info(i: int) -> Array:
 		10: return [T("Velocidad del juego"), "%d%%" % int(game.opt_game_speed * 100.0)]
 		11: return [T("Interfaz grande"), yn[int(game.opt_ui_big)]]
 		12: return [T("Idioma"), "Español" if game.opt_lang == "es" else "English"]
+		13: return [T("Cámara"), ["Broadcast", T("Cercana"), T("Lejana")][game.opt_camera]]
 	return ["", ""]
 
 
@@ -838,6 +840,8 @@ func _cycle_option(i: int) -> void:
 		10:
 			var spd := [1.0, 0.75, 0.5]
 			game.opt_game_speed = spd[(spd.find(game.opt_game_speed) + 1) % 3]
+		13:
+			game.opt_camera = (game.opt_camera + 1) % 3
 		11:
 			game.opt_ui_big = not game.opt_ui_big
 		12:

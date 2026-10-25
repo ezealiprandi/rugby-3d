@@ -11,7 +11,7 @@ const TACKLE_RANGE := 1.35
 const PICKUP_RANGE := 1.4
 
 enum Phase { MENU, KICKOFF, PLAY, BREAKDOWN, SCRUM, LINEOUT, CONVERSION,
-	DROPOUT, PENALTY, SCORE, BETWEEN, END, REPLAY, MAUL }
+	DROPOUT, PENALTY, SCORE, BETWEEN, END, REPLAY, MAUL, PRESENT }
 
 var players: Array[RugbyPlayer] = []
 var ball: RugbyBall
@@ -95,7 +95,7 @@ var pen_count := [0, 0]
 var celebrating: RugbyPlayer = null
 
 # replay broadcast del try
-const REPLAY_LEN := 150                # frames grabados (~2.5s)
+const REPLAY_LEN := 540                # frames grabados (~9s, la jugada entera)
 var replay_buf: Array = []
 var replay_i := 0
 
@@ -107,7 +107,9 @@ const POS_NAMES := ["Pilar", "Hooker", "Pilar", "Segunda", "Segunda",
 var maul_team := -1
 var maul_dir := 1.0
 var pending_maul_team := -1   # se arma cuando el catcher agarra el lineout
-var jackal_pressed := false  # el jugador apretó F para competir en el ruck
+var jackal_pressed := false
+var settle_t := 0.0                  # defensores aguantan tras el ruck
+var opt_camera := 0                  # 0 broadcast · 1 cercana · 2 lejana  # el jugador apretó F para competir en el ruck
 var offload_t := 0.0          # ventana para soltar la pelota al ser placado
 var offloader: RugbyPlayer = null  # el jugador apretó F para competir en el ruck
 
@@ -202,6 +204,7 @@ func save_options() -> void:
 	cfg.set_value("game", "sound", opt_sound)
 	cfg.set_value("game", "half_len", half_len)
 	cfg.set_value("game", "quality", opt_quality)
+	cfg.set_value("game", "camera", opt_camera)
 	cfg.set_value("game", "fullscreen", opt_fullscreen)
 	cfg.set_value("game", "vsync", opt_vsync)
 	cfg.set_value("game", "volume", opt_volume)
@@ -222,6 +225,7 @@ func _load_options() -> void:
 		opt_sound = cfg.get_value("game", "sound", true)
 		half_len = cfg.get_value("game", "half_len", 180.0)
 		opt_quality = cfg.get_value("game", "quality", 2)
+		opt_camera = cfg.get_value("game", "camera", 0)
 		opt_fullscreen = cfg.get_value("game", "fullscreen", false)
 		opt_vsync = cfg.get_value("game", "vsync", true)
 		opt_volume = cfg.get_value("game", "volume", 4)
@@ -383,6 +387,8 @@ func start_match(home: int, away: int, m := "friendly") -> void:
 			RugbyTeams.CLUBS[away_idx]["primary"])
 	_spawn_players()
 	reset_for_kickoff(first_kicker)
+	phase = Phase.PRESENT            # formación lista; orbitamos el estadio
+	phase_t = 4.2
 	ui.commentary("Moneda al aire: %s pone la pelota en juego"
 		% _club_name(first_kicker))
 	var tod_msg := ""
@@ -498,12 +504,19 @@ func _process(delta: float) -> void:
 	match phase:
 		Phase.MENU:
 			pass
+		Phase.PRESENT:
+			phase_t -= delta
+			if phase_t <= 0.0:
+				phase = Phase.KICKOFF
+				phase_t = 1.2
 		Phase.KICKOFF:
 			phase_t -= delta
 			if phase_t <= 0.0:
 				_do_kickoff()
 		Phase.PLAY:
 			clock += delta
+			if settle_t > 0.0:
+				settle_t -= delta
 			_record_frame()
 			var poss_team: int = ball.carrier.team if ball.carrier != null \
 				else ball.last_touch_team
@@ -546,7 +559,17 @@ func _process(delta: float) -> void:
 			phase_t -= delta
 			if Input.is_action_just_pressed("tackle"):
 				jackal_pressed = true
-			if phase_t <= 0.0:
+			if ruck_team == 0:
+				# sos el medioscrum: elegís a dónde abrir
+				if Input.is_action_just_pressed("pass_left"):
+					_ruck_play(-1)
+				elif Input.is_action_just_pressed("pass_right"):
+					_ruck_play(1)
+				elif Input.is_action_just_pressed("pass"):
+					_ruck_play(0)
+				elif phase_t <= 0.0:
+					_resolve_breakdown()
+			elif phase_t <= 0.0:
 				_resolve_breakdown()
 		Phase.SCRUM:
 			phase_t -= delta
@@ -752,6 +775,8 @@ func _on_try(team: int) -> void:
 	if scorer != null:
 		scorer.stat_tries += 1
 	celebrating = scorer
+	if scorer != null:
+		scorer.try_dive_t = 1.1
 	if replay_buf.size() > 30:
 		phase = Phase.REPLAY
 		replay_i = 0
@@ -967,7 +992,37 @@ func _begin_breakdown(c: RugbyPlayer) -> void:
 	else:
 		pending_team = 1 - c.team
 	phase = Phase.BREAKDOWN
-	phase_t = 1.15
+	phase_t = 2.6 if c.team == 0 else 1.15
+	# rearmado ordenado: cada jugador tiene su posición del ruck
+	var d := float(ruck_dir)
+	var spot := pending_spot
+	var pdir := -signf(spot.x) if absf(spot.x) > 6.0 else 1.0
+	for p in players:
+		if p.tackled > 0.0:
+			continue
+		if p.team == ruck_team:
+			if p.index < 8:
+				var pod := p.index / 3
+				p.hold_pos = Vector3(clampf(
+					spot.x + pdir * (4.5 + pod * 5.5) +
+					(p.index % 3 - 1.0) * 1.9, -30.0, 30.0),
+					0.0, spot.z - d * 3.0)
+			elif p.index == 8:
+				p.hold_pos = spot - Vector3(0, 0, d * 2.0)
+			else:
+				var slot := p.index - 9
+				var bdir := pdir if slot < 3 else -pdir
+				p.hold_pos = Vector3(clampf(
+					spot.x + bdir * (5.0 + (slot % 3) * 5.5),
+					-30.0, 30.0), 0.0, spot.z - d * (6.0 - slot * 0.4))
+		else:
+			var lane := -28.0 + p.index * 4.0
+			p.hold_pos = Vector3(clampf(lane + spot.x * 0.3, -30.0, 30.0),
+				0.0, spot.z + d * 3.5)   # línea del lado de SU ingoal
+	if c.team == 0:
+		ui.flash_hint(
+			"RUCK — Q abrir izquierda · E abrir derecha · Espacio pick and go",
+			2.6)
 
 
 # offload: el placado tira la pelota hacia atrás antes de ir al piso
@@ -1133,6 +1188,36 @@ func _resolve_breakdown() -> void:
 	if p != null:
 		ball.set_carrier(p)
 	phase = Phase.PLAY
+	settle_t = 0.45
+
+
+# ruck dirigido por el jugador: el 9 abre la pelota donde elegís
+func _ruck_play(side: int) -> void:
+	if phase != Phase.BREAKDOWN or ruck_team != 0:
+		return
+	var server: RugbyPlayer = players[8]
+	if server.tackled > 0.0 or server.sin_bin_t > 0.0:
+		server = _nearest(0, pending_spot, null, 999.0)
+	if server == null:
+		_resolve_breakdown()
+		return
+	ball.set_carrier(server)
+	if side == 0:
+		var f := _nearest_forward(0, pending_spot, 6.0)
+		if f != null and f != server:
+			ball.set_carrier(f)
+			f.surge_t = 0.5
+			ui.flash_hint("¡Pick and go!")
+	else:
+		var target := find_pass_target_side(server, side)
+		if target == null:
+			target = find_pass_target(server, true)
+		if target != null and target != server:
+			server.pass_anim_t = 0.3
+			ball.throw_to(target, server)
+	phase = Phase.PLAY
+	settle_t = 0.5
+	jackal_pressed = false
 
 
 # marca: pelota de patada rival atrapada dentro de tus 22
