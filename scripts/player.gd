@@ -264,6 +264,18 @@ func _physics_process(delta: float) -> void:
 	wish *= 0.7 + 0.3 * stamina
 	velocity.x = wish.x
 	velocity.z = wish.z
+
+	# separación suave: los jugadores no se superponen, sin física dura
+	for op in game.players:
+		if op == self or op.tackled > 0.0:
+			continue
+		var diff := global_position - op.global_position
+		diff.y = 0.0
+		var dd := diff.length()
+		if dd < 1.05 and dd > 0.001:
+			var push := diff.normalized() * ((1.05 - dd) / 1.05) * 7.5
+			velocity.x += push.x
+			velocity.z += push.z
 	_apply_gravity_move(delta)
 
 	var hs := Vector2(velocity.x, velocity.z).length()

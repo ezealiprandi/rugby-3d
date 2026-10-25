@@ -12,6 +12,8 @@ var env_node: WorldEnvironment
 var sun_node: DirectionalLight3D
 var rain: GPUParticles3D
 var floodlights: Array = []          # SpotLight3D de cada torre (noche)
+var crowd_mm: MultiMesh = null       # hinchada (para teñir de colores del club)
+var crowd_palette: Array = []
 
 static func build(parent: Node3D) -> RugbyField:
 	var f := RugbyField.new()
@@ -144,9 +146,12 @@ uniform vec4 color : source_color;
 void fragment() {
 	vec2 cell = floor(VERTEX.xz * 2.5);
 	float n = fract(sin(dot(cell, vec2(12.9898, 78.233))) * 43758.5453);
-	ALBEDO = color.rgb * (0.86 + n * 0.26);
-	ROUGHNESS = 0.95;
-	SPECULAR = 0.15;
+	float grain = fract(sin(dot(floor(VERTEX.xz * 30.0),
+		vec2(26.6517, 38.1254))) * 29731.13);
+	float mow = step(0.5, fract(VERTEX.x * 0.35)) * 0.05;
+	ALBEDO = color.rgb * (0.80 + n * 0.20 + grain * 0.10 + mow);
+	ROUGHNESS = 0.9;
+	SPECULAR = 0.2;
 }
 """
 	var green_a := ShaderMaterial.new()
@@ -483,11 +488,12 @@ func _build_crowd() -> void:
 	# público con MultiMesh: un draw call para ~2500 espectadores
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 7
-	var palette := [
+	crowd_palette = [
 		Color(0.9, 0.2, 0.2), Color(0.95, 0.95, 0.9), Color(0.2, 0.3, 0.7),
 		Color(0.9, 0.6, 0.15), Color(0.15, 0.5, 0.25), Color(0.7, 0.7, 0.75),
 		Color(0.3, 0.3, 0.35), Color(0.95, 0.55, 0.2),
 	]
+	var palette: Array = crowd_palette
 	var mm := MultiMesh.new()
 	mm.transform_format = MultiMesh.TRANSFORM_3D
 	mm.use_colors = true
@@ -515,7 +521,25 @@ func _build_crowd() -> void:
 	var inst := MultiMeshInstance3D.new()
 	inst.multimesh = mm
 	add_child(inst)
+	crowd_mm = mm
 	for i in positions.size():
 		var t := Transform3D(Basis.IDENTITY, positions[i])
 		mm.set_instance_transform(i, t)
 		mm.set_instance_color(i, palette[rng.randi() % palette.size()])
+
+
+# Tiñe parte de la hinchada con los colores de los clubes que juegan.
+func tint_crowd(home_c: Color, away_c: Color) -> void:
+	if crowd_mm == null:
+		return
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 99
+	for i in crowd_mm.instance_count:
+		var r := rng.randf()
+		if r < 0.22:
+			crowd_mm.set_instance_color(i, home_c.lightened(rng.randf() * 0.3))
+		elif r < 0.36:
+			crowd_mm.set_instance_color(i, away_c.lightened(rng.randf() * 0.3))
+		else:
+			crowd_mm.set_instance_color(i,
+				crowd_palette[rng.randi() % crowd_palette.size()])

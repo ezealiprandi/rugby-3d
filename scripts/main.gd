@@ -293,6 +293,9 @@ func start_match(home: int, away: int, m := "friendly") -> void:
 					"drawn": 0, "lost": 0, "pf": 0, "pa": 0, "bonus": 0})
 		away = tour_fixture[tour_pos]
 	away_idx = away
+	if field != null:
+		field.tint_crowd(RugbyTeams.CLUBS[home_idx]["primary"],
+			RugbyTeams.CLUBS[away_idx]["primary"])
 	_spawn_players()
 	reset_for_kickoff(first_kicker)
 	var tod_msg := ""

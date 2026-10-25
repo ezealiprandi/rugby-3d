@@ -23,8 +23,11 @@ var practice_btn: Button
 var controls_btn: Button
 var controls_lbl: Label
 var grid: GridContainer
+var sel_row: HBoxContainer
 var buttons: Array[Button] = []
 var footer_lbl: Label
+var preview_tex: TextureRect
+var preview_lbl: Label
 
 
 func _mode_button(text: String, bg_c: Color, border_c: Color) -> Button:
@@ -157,12 +160,34 @@ el defensor más cercano al balón en defensa."""
 	controls_lbl.visible = false
 	vb.add_child(controls_lbl)
 
+	sel_row = HBoxContainer.new()
+	sel_row.add_theme_constant_override("separation", 24)
+	sel_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	sel_row.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	vb.add_child(sel_row)
+
 	grid = GridContainer.new()
 	grid.columns = 2
 	grid.add_theme_constant_override("h_separation", 10)
 	grid.add_theme_constant_override("v_separation", 8)
 	grid.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	vb.add_child(grid)
+	sel_row.add_child(grid)
+
+	# vista previa del club enfocado: camiseta grande + datos
+	var pv := VBoxContainer.new()
+	pv.alignment = BoxContainer.ALIGNMENT_CENTER
+	pv.add_theme_constant_override("separation", 8)
+	pv.custom_minimum_size = Vector2(190, 0)
+	sel_row.add_child(pv)
+	preview_tex = TextureRect.new()
+	preview_tex.custom_minimum_size = Vector2(150, 190)
+	preview_tex.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	preview_tex.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	pv.add_child(preview_tex)
+	preview_lbl = _lbl(18)
+	preview_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	preview_lbl.add_theme_color_override("font_color", Color(0.95, 0.9, 0.6))
+	pv.add_child(preview_lbl)
 
 	var clubs: Array = RugbyTeams.CLUBS
 	for i in clubs.size():
@@ -215,7 +240,7 @@ func _update_view() -> void:
 	tourney_btn.visible = is_title
 	practice_btn.visible = is_title
 	controls_btn.visible = is_title
-	grid.visible = step == Step.HOME or step == Step.AWAY
+	sel_row.visible = step == Step.HOME or step == Step.AWAY
 	controls_lbl.visible = is_controls
 
 	match step:
@@ -231,11 +256,13 @@ func _update_view() -> void:
 			footer_lbl.text = "↑↓ mover · Enter/click confirmar · Esc volver"
 			_fill_rows(-1)
 			buttons[cursor].grab_focus()
+			_update_preview()
 		Step.AWAY:
 			prompt_lbl.text = "ELEGÍ EL RIVAL — tu equipo: %s" % clubs[home_idx]["name"]
 			footer_lbl.text = "↑↓ mover · Enter/click confirmar · Esc volver"
 			_fill_rows(home_idx)
 			buttons[cursor].grab_focus()
+			_update_preview()
 		Step.CONTROLS:
 			prompt_lbl.text = "CONTROLES"
 			footer_lbl.text = "Esc volver"
@@ -258,6 +285,12 @@ func _process(_delta: float) -> void:
 		_back()
 		return
 	if step == Step.HOME or step == Step.AWAY:
+		var fo := get_viewport().gui_get_focus_owner()
+		if fo != null and fo in buttons:
+			var fi := buttons.find(fo)
+			if fi != cursor:
+				cursor = fi
+				_update_preview()
 		if Input.is_action_just_pressed("move_down"):
 			_move_cursor(2)
 		elif Input.is_action_just_pressed("move_up"):
@@ -279,6 +312,17 @@ func _move_cursor(delta: int) -> void:
 	if next != cursor:
 		cursor = next
 		buttons[cursor].grab_focus()
+		_update_preview()
+
+
+func _update_preview() -> void:
+	if preview_tex == null or cursor < 0:
+		return
+	var c: Dictionary = RugbyTeams.CLUBS[cursor]
+	preview_tex.texture = RugbyTeams.jersey_texture(cursor)
+	var stars := clampi(int(round((c["rating"] - 0.88) / 0.05)), 1, 5)
+	preview_lbl.text = "%s\n%s\nRating %s" % [c["name"], c["city"],
+		"★".repeat(stars) + "☆".repeat(5 - stars)]
 
 
 func _back() -> void:
@@ -314,6 +358,7 @@ func _on_team_hover(i: int) -> void:
 		if i != exclude:
 			cursor = i
 			buttons[i].grab_focus()
+			_update_preview()
 
 
 func _on_team_pressed(i: int) -> void:

@@ -36,10 +36,36 @@ func _ready() -> void:
 	mi.mesh = sm
 	mi.rotation.x = PI / 2.0
 	var mat := StandardMaterial3D.new()
-	mat.albedo_color = Color(0.6, 0.36, 0.18)
-	mat.roughness = 0.85
+	mat.albedo_color = Color(0.58, 0.34, 0.16)
+	mat.roughness = 0.7
 	mi.material_override = mat
 	add_child(mi)
+
+	# costura alrededor de la panza (toro oscuro) + aro claro de panel
+	var seam := MeshInstance3D.new()
+	var tm := TorusMesh.new()
+	tm.inner_radius = 0.14
+	tm.outer_radius = 0.185
+	seam.mesh = tm
+	seam.rotation.x = PI / 2.0
+	var smat := StandardMaterial3D.new()
+	smat.albedo_color = Color(0.28, 0.15, 0.07)
+	smat.roughness = 0.8
+	seam.material_override = smat
+	add_child(seam)
+
+	var ring := MeshInstance3D.new()
+	var tm2 := TorusMesh.new()
+	tm2.inner_radius = 0.148
+	tm2.outer_radius = 0.172
+	ring.mesh = tm2
+	ring.rotation.x = PI / 2.0
+	ring.position.z = 0.05
+	var rmat := StandardMaterial3D.new()
+	rmat.albedo_color = Color(0.92, 0.9, 0.85)
+	rmat.roughness = 0.75
+	ring.material_override = rmat
+	add_child(ring)
 	freeze = true
 
 
