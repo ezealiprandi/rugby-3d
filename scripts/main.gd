@@ -764,6 +764,8 @@ func _on_try(team: int) -> void:
 	_whistle()
 	if sfx_cheer.stream != null:
 		sfx_cheer.play()
+	if field != null:
+		field.crowd_surge()
 	_confetti(scorer.global_position,
 		RugbyTeams.CLUBS[home_idx if team == 0 else away_idx]["primary"])
 	var scorer_txt := ""
@@ -947,6 +949,8 @@ func on_tackle(tackler: RugbyPlayer, carrier: RugbyPlayer) -> void:
 	ruck_team = carrier.team
 	ruck_dir = int(attack_dir[carrier.team])
 	ui.show_message("¡PLACAJE!", 1.0)
+	if rng.randf() < 0.3:
+		ui.commentary("Entrada dura pero legal")
 	# la IA intenta el offload si tiene apoyo cerca
 	if carrier != controlled and rng.randf() < 0.45:
 		on_offload(carrier)
@@ -1282,6 +1286,8 @@ func _update_maul(delta: float) -> void:
 
 func _event_penalty(team: int, spot: Vector3, msg: String) -> void:
 	ui.show_message(msg, 2.2)
+	if rng.randf() < 0.4:
+		ui.commentary("El árbitro no perdona la infracción")
 	_whistle()
 	pending_team = team
 	pending_spot = spot

@@ -14,6 +14,9 @@ var rain: GPUParticles3D
 var floodlights: Array = []          # SpotLight3D de cada torre (noche)
 var crowd_mm: MultiMesh = null       # hinchada (para teñir de colores del club)
 var crowd_palette: Array = []
+var crowd_pos: Array[Vector3] = []   # posiciones base para la ola
+var wave_t := 0.0
+var wave_amp := 0.0                  # sube a 1.0 en un try
 
 static func build(parent: Node3D) -> RugbyField:
 	var f := RugbyField.new()
@@ -517,6 +520,7 @@ func _build_crowd() -> void:
 					2.4 + row * 1.8 + 0.5 + rng.randf_range(0.0, 0.15),
 					s * (70.0 + row * 3.0) + rng.randf_range(-0.5, 0.5)))
 
+	crowd_pos = positions.duplicate()
 	mm.instance_count = positions.size()
 	var inst := MultiMeshInstance3D.new()
 	inst.multimesh = mm
@@ -526,6 +530,25 @@ func _build_crowd() -> void:
 		var t := Transform3D(Basis.IDENTITY, positions[i])
 		mm.set_instance_transform(i, t)
 		mm.set_instance_color(i, palette[rng.randi() % palette.size()])
+
+
+# ola permanente sutil; crowd_surge() la dispara en los tries
+func _process(delta: float) -> void:
+	if crowd_mm == null or crowd_pos.is_empty():
+		return
+	wave_t += delta * 2.4
+	wave_amp = maxf(0.0, wave_amp - delta * 0.45)
+	var amp := 0.10 + wave_amp * 0.6
+	for i in crowd_mm.instance_count:
+		var bp := crowd_pos[i]
+		var ph := bp.z * 0.30 + bp.x * 0.12
+		var y := bp.y + maxf(0.0, sin(wave_t + ph)) * amp
+		crowd_mm.set_instance_transform(i,
+			Transform3D(Basis.IDENTITY, Vector3(bp.x, y, bp.z)))
+
+
+func crowd_surge() -> void:
+	wave_amp = 1.0
 
 
 # Tiñe parte de la hinchada con los colores de los clubes que juegan.
