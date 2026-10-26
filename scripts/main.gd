@@ -86,6 +86,8 @@ var opt_vsync := true
 var opt_volume := 4            # 0..4 → mudo..100%
 var opt_sprint_toggle := false # false mantener · true alternar
 var opt_game_speed := 1.0      # 1.0 · 0.75 · 0.5 (accesibilidad)
+var opt_selmode := 1           # 0 automática · 1 mixta · 2 manual (click)
+var sel_cd := 0.0              # cooldown mínimo entre cambios de jugador
 var opt_ui_big := false        # interfaz más grande
 var opt_lang := "es"           # es · en
 const RES_MODES := [[1280, 720, "1280×720"], [1366, 768, "1366×768"],
@@ -231,6 +233,7 @@ func save_options() -> void:
 	cfg.set_value("game", "volume", opt_volume)
 	cfg.set_value("game", "sprint_toggle", opt_sprint_toggle)
 	cfg.set_value("game", "game_speed", opt_game_speed)
+	cfg.set_value("game", "selmode", opt_selmode)
 	cfg.set_value("game", "ui_big", opt_ui_big)
 	cfg.set_value("game", "lang", opt_lang)
 	cfg.set_value("game", "resolution", opt_resolution)
@@ -253,6 +256,7 @@ func _load_options() -> void:
 		opt_volume = cfg.get_value("game", "volume", 4)
 		opt_sprint_toggle = cfg.get_value("game", "sprint_toggle", false)
 		opt_game_speed = cfg.get_value("game", "game_speed", 1.0)
+		opt_selmode = int(cfg.get_value("game", "selmode", 1))
 		opt_ui_big = cfg.get_value("game", "ui_big", false)
 		opt_lang = cfg.get_value("game", "lang", "es")
 		opt_resolution = clampi(int(cfg.get_value("game", "resolution", 2)),
@@ -541,6 +545,12 @@ func _do_kickoff() -> void:
 
 
 # ─── Loop principal ─────────────────────────────────────────────────────────
+func _unhandled_input(event: InputEvent) -> void:
+	if event is InputEventMouseButton and event.pressed \
+			and event.button_index == MOUSE_BUTTON_LEFT and not get_tree().paused:
+		_click_select(event.position)
+
+
 func _process(delta: float) -> void:
 	var in_menu := phase == Phase.MENU
 	if Input.is_action_just_pressed("pause") and not in_menu and phase != Phase.END:
@@ -1984,19 +1994,63 @@ func find_pass_target_side(carrier: RugbyPlayer, side: int) -> RugbyPlayer:
 
 
 func _select_controlled() -> void:
-	var want: RugbyPlayer = null
+	sel_cd = maxf(0.0, sel_cd - get_process_delta_time())
+	var want: RugbyPlayer = controlled
+	# siempre: quien lleva la pelota es el controlado
 	if ball.carrier != null and ball.carrier.team == 0:
 		want = ball.carrier
-	elif phase == Phase.PLAY or phase == Phase.KICKOFF:
-		var n := _nearest(0, ball.global_position, null, 999.0)
-		if n != null and controlled != null and controlled.team == 0 				and controlled.tackled <= 0.0 and controlled.sin_bin_t <= 0.0:
-			var dn := n.global_position.distance_to(ball.global_position)
-			var dc := controlled.global_position.distance_to(ball.global_position)
-			want = n if dn < dc * 0.78 else controlled   # histéresis
-		else:
-			want = n
-	if want != controlled:
+	elif opt_selmode == 0:
+		# automática: el más cercano a la pelota, con histéresis fuerte y
+		# sin cambiar mientras la pelota viaja en el aire (pase/patada)
+		if (phase == Phase.PLAY or phase == Phase.KICKOFF) and sel_cd <= 0.0:
+			if ball.pass_from == null or ball.global_position.y < 1.5:
+				var n := _nearest(0, ball.global_position, null, 999.0)
+				if n != null:
+					if controlled == null or controlled.team != 0 \
+							or controlled.tackled > 0.0 or controlled.sin_bin_t > 0.0:
+						want = n
+					else:
+						var dn := n.global_position.distance_to(ball.global_position)
+						var dc := controlled.global_position.distance_to(ball.global_position)
+						if dn < dc * 0.6:
+							want = n
+	elif opt_selmode == 1:
+		# mixta: auto solo cuando el controlado no puede jugar; el click
+		# manual siempre está disponible
+		if controlled == null or controlled.tackled > 0.0 \
+				or controlled.sin_bin_t > 0.0:
+			want = _nearest(0, ball.global_position, null, 999.0)
+	# manual: solo cambia por click o por llevar la pelota
+	if want != null and want != controlled:
 		controlled = want
+		sel_cd = 0.5
+
+
+# selección con el cursor como puntero: click sobre un jugador lo controla
+func _click_select(mp: Vector2) -> void:
+	if opt_selmode == 0:
+		return
+	if phase != Phase.PLAY and phase != Phase.KICKOFF:
+		return
+	var from := cam.project_ray_origin(mp)
+	var d := cam.project_ray_normal(mp)
+	if d.y >= -0.01:
+		return
+	var hit := from + d * (-from.y / d.y)   # punto del click en el piso
+	var best: RugbyPlayer = null
+	var bd := 4.5
+	for p in players:
+		if p.team != 0 or p.tackled > 0.0 or p.sin_bin_t > 0.0:
+			continue
+		var dd := Vector2(p.global_position.x - hit.x,
+			p.global_position.z - hit.z).length()
+		if dd < bd:
+			bd = dd
+			best = p
+	if best != null and best != controlled:
+		controlled = best
+		sel_cd = 0.5
+		ui.flash_hint("Controlando: #%d %s" % [best.index + 1, best.pname])
 
 
 func cam_move_dir(iv: Vector2) -> Vector3:

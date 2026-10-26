@@ -372,7 +372,7 @@ func _ready() -> void:
 	opt_box.visible = false
 	content_box.add_child(opt_box)
 	var opt_layout: Array = [
-		"PARTIDO", 0, 1, 2, 3,
+		"PARTIDO", 0, 1, 2, 3, 15,
 		"GRÁFICOS", 4, 5, 6, 14, 13,
 		"AUDIO", 7, 8,
 		"CONTROLES", 9,
@@ -805,6 +805,8 @@ func _opt_info(i: int) -> Array:
 		13: return [T("Cámara"), ["Broadcast", T("Cercana"), T("Lejana"),
 			T("Detrás")][game.opt_camera]]
 		14: return [T("Resolución"), game.RES_MODES[game.opt_resolution][2]]
+		15: return [T("Selección de jugador"), [T("Automática"), T("Mixta"),
+			T("Manual")][game.opt_selmode]]
 	return ["", ""]
 
 
@@ -840,6 +842,8 @@ func _cycle_option(i: int) -> void:
 			game.opt_camera = (game.opt_camera + 1) % 4
 		14:
 			game.opt_resolution = (game.opt_resolution + 1) % game.RES_MODES.size()
+		15:
+			game.opt_selmode = (game.opt_selmode + 1) % 3
 		11:
 			game.opt_ui_big = not game.opt_ui_big
 		12:
