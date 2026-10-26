@@ -90,9 +90,9 @@ func _build_env() -> void:
 	env.ssao_radius = 2.0
 	env.ssao_intensity = 1.6
 	env.fog_enabled = true
-	env.fog_density = 0.0035
-	env.fog_light_color = Color(0.75, 0.68, 0.6)
-	env.fog_light_energy = 0.5
+	env.fog_density = 0.0014                # casi imperceptible: aire, no filtro
+	env.fog_light_color = Color(0.8, 0.8, 0.85)
+	env.fog_light_energy = 0.25
 	we.environment = env
 	env_node = we
 	add_child(we)
@@ -111,7 +111,7 @@ func _build_env() -> void:
 # clima: lluvia oscurece el cielo, baja el sol y agrega partículas
 func set_weather(is_rain: bool) -> void:
 	if env_node != null:
-		env_node.environment.fog_density = 0.009 if is_rain else 0.0035
+		env_node.environment.fog_density = 0.0042 if is_rain else 0.0014
 		var psm := env_node.environment.sky.sky_material as ProceduralSkyMaterial
 		if psm != null:
 			psm.sky_top_color = Color(0.28, 0.3, 0.34) if is_rain \

@@ -47,7 +47,9 @@ var sin_bin_t := 0.0                  # tiempo restante en el sin bin
 
 var visual: Node3D
 var marker: MeshInstance3D
+var ring: MeshInstance3D
 var name_tag: Label3D
+var num_tag: Label3D
 var leg_l: Node3D
 var leg_r: Node3D
 var arm_l: Node3D
@@ -256,17 +258,19 @@ func _build_visual() -> void:
 		cap.position = Vector3(0.0, 1.94, 0.0)
 		visual.add_child(cap)
 
-	var num := Label3D.new()
-	num.text = str(index + 1)
-	num.font_size = 80
-	num.pixel_size = 0.0045
-	num.modulate = trim
-	num.outline_size = 8
-	num.outline_modulate = Color(0.9, 0.9, 0.9) if jersey.get_luminance() < 0.4 \
+	num_tag = Label3D.new()
+	num_tag.text = str(index + 1)
+	num_tag.font_size = 80
+	num_tag.pixel_size = 0.0045
+	num_tag.modulate = trim
+	num_tag.outline_size = 8
+	num_tag.outline_modulate = Color(0.9, 0.9, 0.9) if jersey.get_luminance() < 0.4 \
 		else Color(0.08, 0.08, 0.08)
-	num.rotation.y = PI
-	num.position = Vector3(0.0, 1.44, -0.17 * bulk)
-	visual.add_child(num)
+	num_tag.rotation.y = PI
+	num_tag.position = Vector3(0.0, 1.44, -0.21 * bulk)
+	num_tag.shaded = false
+	num_tag.fixed_size = false
+	visual.add_child(num_tag)
 
 	marker = MeshInstance3D.new()
 	var cone := CylinderMesh.new()
@@ -278,11 +282,27 @@ func _build_visual() -> void:
 	marker.position.y = 2.5
 	marker.material_override = _mat(Color(1.0, 0.85, 0.1))
 	visual.add_child(marker)
+	# anillo dorado en el piso: se ve a cualquier altura de cámara
+	ring = MeshInstance3D.new()
+	var torus := TorusMesh.new()
+	torus.inner_radius = 0.42
+	torus.outer_radius = 0.58
+	ring.mesh = torus
+	ring.position.y = 0.08
+	var rm := StandardMaterial3D.new()
+	rm.albedo_color = Color(1.0, 0.85, 0.1)
+	rm.emission_enabled = true
+	rm.emission = Color(1.0, 0.8, 0.15)
+	rm.emission_energy_multiplier = 1.4
+	ring.material_override = rm
+	visual.add_child(ring)
 
 
 func _process(_delta: float) -> void:
 	var is_me := game != null and game.controlled == self
 	marker.visible = is_me
+	if ring != null:
+		ring.visible = is_me
 	if name_tag != null:
 		name_tag.visible = is_me
 
@@ -663,8 +683,11 @@ func _defense_ai() -> Vector3:
 	var cdir := float(game.attack_dir[c.team])
 	var rank := _team_rank(c.global_position)
 	var dist_c := global_position.distance_to(c.global_position)
-	# el defensor mas cercano se lanza si llega con ventaja
-	if rank == 0 and dive_cd <= 0.0 and dist_c > 2.3 and dist_c < 5.2:
+	# lance al piso SOLO si el carrier se está yendo al try en velocidad
+	# (barreta desesperada); el placaje normal es de pie envolviendo
+	var try_line := cdir * RugbyGame.TRY_Z
+	var carrier_burning: bool = c.velocity.length() > 8.0 		and absf(c.global_position.z - try_line) < 26.0
+	if rank == 0 and dive_cd <= 0.0 and carrier_burning 			and dist_c > 3.4 and dist_c < 5.0:
 		var dd := (c.global_position - global_position)
 		dd.y = 0.0
 		_start_dive(dd.normalized())

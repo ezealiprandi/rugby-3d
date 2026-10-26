@@ -106,43 +106,43 @@ static var _tex_cache := {}
 # de jugadores y dirigentes del medio tucumano.
 const SQUADS := [
 	# TUCUMÁN RUGBY CLUB
-	["Estofán", "T. Aguilar", "Díaz Vélez", "Pascal", "Buffo",
-		"Majul", "Laitán", "González Firpo", "Poviña", "Domínguez",
-		"Vanni", "Padilla", "Galíndez", "Pasquini", "Paz Uriburu"],
+	["Estofán", "T. Aguilar", "Díaz Vélez", "Pascal", "Guzmán J.C.",
+		"Majul", "Laitán", "Heredia", "Poviña", "Domínguez",
+		"Vanni", "López García", "Galíndez", "Pasquini", "Paz Uriburu"],
 	# UNIVERSITARIO
-	["Torres L.", "Naraskivicius", "Mas", "Brandán E.", "Gentile",
-		"Contreras Arce", "Fierro Tadei", "Delpero", "López Ríos",
+	["Torres L.", "Acuña", "Mas", "Brandán E.", "Gentile",
+		"Contreras Arce", "Fierro M.", "Delpero", "López Ríos",
 		"Valdez Cosentino", "Brandán N.", "Cano", "Ferreyra",
 		"Bonfiglioli", "Triviño"],
 	# LOS TARCOS
-	["Stenvers", "Lazarte", "Eljatib", "Amaya", "Laborde",
-		"Picon", "Gravano", "Ledesma", "Alvizo", "Alves Rojano",
+	["El Jatib", "Lazarte", "Stenvers", "Amaya", "Laborde",
+		"Picon", "Gravano", "Salsench", "Alvizo", "Alves Rojano",
 		"Politti", "Salazar", "Gravano B.", "López", "Chehuan"],
 	# NATACIÓN Y GIMNASIA
-	["Bascary", "Escobedo", "Agüero", "Ascárate", "Molina",
-		"Ledesma", "Agüero E.", "Villalba", "Perondi", "Molina L.",
+	["Calderón", "Escobedo", "Groso", "Ascárate", "Molina",
+		"Galvez", "Juárez T.", "Villalba", "Perondi", "Molina L.",
 		"Bonilla", "Brizuela", "Paliza", "Orlande", "Díaz"],
 	# LAWN TENNIS
-	["Bellagamba", "Salazar", "Navarro", "Calliera", "Casañas",
+	["Bellagamba", "Salazar", "Navarro", "Argüello", "Calliera",
 		"Bottini", "Jogna Prat", "Mukdise", "López Islas",
 		"Rodríguez Prados", "Soberón", "Gianotti", "Manino",
-		"Novillo", "Ferro"],
+		"Novillo", "Sólimo"],
 	# CARDENALES
-	["Brito", "Filipezuk", "Brito T.", "Ávila", "Salanitri",
-		"Lobo", "García", "Díaz", "Cabrera Char", "Medina",
+	["Brito", "Bravo I.", "Filipezuk", "Rufino", "Salanitri",
+		"Lobo", "García", "Díaz I.", "Cabrera Char", "Medina L.",
 		"Abi Cheble", "Odstrcil", "Muñoz", "Budeguer", "Cerrutti"],
 	# HUIRAPUCA
-	["Aybar", "Raso", "González Loberza", "Hernández Leiva", "Bralo",
-		"González Ponce", "Lefebvre", "Dande", "Herrera", "Faralle",
-		"Posse", "Lazcano", "Lefebvre L.", "Gutiérrez", "Soria"],
+	["Aybar", "Raso", "González F.", "Hernández Leiva", "Bralo",
+		"González Ponce", "Sotillo", "Dande", "Lefebvre", "Molina J.C.",
+		"Núñez Piossek", "Agüero C.", "Pérez J.", "Gutiérrez", "Soria"],
 	# JOCKEY CLUB
-	["Landivar", "Quintana", "Zanoni", "Romero", "Sánchez",
-		"Vega", "Paz", "Herrera", "Campos", "Ibáñez",
+	["Landivar", "Guraiib", "Zanoni", "Romero", "Sánchez",
+		"Vega", "Paz", "Auad", "Campos", "Ibáñez",
 		"Luna", "Suárez", "Arias", "Toledo", "Montero"],
 	# LINCE
-	["Garbero", "Palacios", "Giménez", "Ríos", "Correa",
+	["Garbero", "Palacios", "Giménez", "Salmoiraghi", "Correa",
 		"Maldonado", "Rojas", "Sosa", "Núñez", "Acosta",
-		"Pereyra", "Valdez", "Luna", "Carrizo", "Bazán"],
+		"Pereyra", "Castro M.", "Luna", "Carrizo", "Bazán"],
 	# CORSARIOS
 	["Molina", "Arguello", "Rocha", "Di Marco", "Castro",
 		"Benítez", "Guzmán", "Juárez", "Moreno", "Córdoba",
