@@ -6,7 +6,7 @@ const FIELD_HALF_W := 35.0        # semiancho (touchlines en |x| = 35)
 const TRY_Z := 50.0               # líneas de try en |z| = 50
 const DEAD_Z := 60.0              # línea de pelota muerta
 const TEAM_SIZE := 15
-var half_len := 180.0             # segundos por tiempo (opción del menú)
+var half_len := 600.0             # segundos por tiempo (opción del menú)
 const TACKLE_RANGE := 1.35
 const PICKUP_RANGE := 1.4
 
@@ -102,6 +102,7 @@ var celebrating: RugbyPlayer = null
 const REPLAY_LEN := 540                # frames grabados (~9s, la jugada entera)
 var replay_buf: Array = []
 var replay_i := 0
+var replay_wait := 0.0                 # espera antes de reproducir (intro animada)
 
 const POS_NAMES := ["Pilar", "Hooker", "Pilar", "Segunda", "Segunda",
 	"Flanker", "Flanker", "Octavo", "Medioscrum", "Apertura", "Wing",
@@ -238,7 +239,7 @@ func _load_options() -> void:
 		opt_tod = cfg.get_value("game", "tod", "random")
 		opt_weather = cfg.get_value("game", "weather", "random")
 		opt_sound = cfg.get_value("game", "sound", true)
-		half_len = cfg.get_value("game", "half_len", 180.0)
+		half_len = cfg.get_value("game", "half_len", 600.0)
 		opt_quality = cfg.get_value("game", "quality", 2)
 		opt_camera = cfg.get_value("game", "camera", 0)
 		opt_fullscreen = cfg.get_value("game", "fullscreen", false)
@@ -262,6 +263,12 @@ func _apply_options() -> void:
 		DisplayServer.VSYNC_ENABLED if opt_vsync else DisplayServer.VSYNC_DISABLED)
 	if opt_fullscreen:
 		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN)
+		# en fullscreen: usar la resolución elegida como content_scale
+		# (la ventana ocupa toda la pantalla pero el render escala a la resolución)
+		var rw: int = RES_MODES[opt_resolution][0]
+		var rh: int = RES_MODES[opt_resolution][1]
+		get_window().content_scale_size = Vector2i(rw, rh)
+		get_window().content_scale_mode = Window.CONTENT_SCALE_MODE_CANVAS_ITEMS
 	else:
 		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED)
 		var scr := DisplayServer.screen_get_size()
@@ -270,6 +277,8 @@ func _apply_options() -> void:
 		get_window().size = Vector2i(mini(rw, scr.x), mini(rh, scr.y - 48))
 		get_window().position = (scr - get_window().size) / 2
 	get_window().content_scale_factor = 1.22 if opt_ui_big else 1.0
+	if not opt_fullscreen:
+		get_window().content_scale_size = Vector2i.ZERO
 	if field != null and field.env_node != null:
 		var e := field.env_node.environment
 		e.glow_enabled = opt_quality >= 1
@@ -555,7 +564,7 @@ func _process(delta: float) -> void:
 			if phase_t <= 0.0:
 				_do_kickoff()
 		Phase.PLAY:
-			clock += delta
+			clock += delta * _clock_speed()
 			if settle_t > 0.0:
 				settle_t -= delta
 			_record_frame()
@@ -596,9 +605,15 @@ func _process(delta: float) -> void:
 			_check_clock()
 			_check_boundaries()
 		Phase.REPLAY:
-			if Input.is_action_just_pressed("pass"):
-				replay_i = replay_buf.size()   # Espacio: saltea el replay
-			_replay_step()
+			if replay_wait > 0.0:
+				replay_wait -= delta
+				if replay_wait <= 0.0:
+					ui.replay_intro_hide()
+					ui.replay_overlay(true)
+			else:
+				if Input.is_action_just_pressed("pass"):
+					replay_i = replay_buf.size()   # Espacio: saltea el replay
+				_replay_step()
 		Phase.MAUL:
 			_update_maul(delta)
 		Phase.BREAKDOWN:
@@ -685,6 +700,11 @@ func _process(delta: float) -> void:
 	if not in_menu:
 		_select_controlled()
 		_refresh_ui()
+
+
+# reloj acelerado tipo FIFA: cada tiempo se completa en ~5 min reales
+func _clock_speed() -> float:
+	return half_len / 300.0 if half_len > 300.0 else 1.0
 
 
 func _check_clock() -> void:
@@ -839,6 +859,14 @@ func _record_frame() -> void:
 		f.append(p.global_position)
 	for p in players:
 		f.append(p.visual.rotation.y if p.visual != null else 0.0)
+	# animación de limbs para que el replay no muestre jugadores "congelados"
+	for p in players:
+		f.append(p.leg_l.rotation.x if p.leg_l != null else 0.0)
+		f.append(p.leg_r.rotation.x if p.leg_r != null else 0.0)
+		f.append(p.arm_l.rotation.x if p.arm_l != null else 0.0)
+		f.append(p.arm_r.rotation.x if p.arm_r != null else 0.0)
+		f.append(p.visual.rotation.x if p.visual != null else 0.0)
+		f.append(p.visual.position.y if p.visual != null else 0.0)
 	f.append(ball.global_position)
 	replay_buf.append(f)
 	if replay_buf.size() > REPLAY_LEN:
@@ -853,11 +881,21 @@ func _replay_step() -> void:
 		return
 	var f: Array = replay_buf[replay_i]
 	replay_i += 1
-	for i in players.size():
+	var n := players.size()
+	for i in n:
 		players[i].global_position = f[i]
 		if players[i].visual != null:
-			players[i].visual.rotation.y = f[players.size() + i]
-	ball.global_position = f[players.size() * 2]
+			players[i].visual.rotation.y = f[n + i]
+		# restaurar pose de limbs grabada
+		var base := n * 2 + i * 6
+		if players[i].leg_l != null:
+			players[i].leg_l.rotation.x = f[base]
+			players[i].leg_r.rotation.x = f[base + 1]
+			players[i].arm_l.rotation.x = f[base + 2]
+			players[i].arm_r.rotation.x = f[base + 3]
+			players[i].visual.rotation.x = f[base + 4]
+			players[i].visual.position.y = f[base + 5]
+	ball.global_position = f[n * 8]
 
 
 func _on_try(team: int) -> void:
@@ -877,7 +915,8 @@ func _on_try(team: int) -> void:
 	if replay_buf.size() > 30:
 		phase = Phase.REPLAY
 		replay_i = 0
-		ui.replay_overlay(true)
+		replay_wait = 3.0
+		ui.replay_intro_show()
 	else:
 		phase = Phase.SCORE
 		phase_t = 2.0
@@ -943,6 +982,7 @@ func _setup_kick_at_goal(pts: int, team: int, spot: Vector3) -> void:
 	kicker.global_position = conv_kick_pos - Vector3(0, 0, conv_dir * 2.0)
 	kicker.facing = Vector3(0, 0, conv_dir)
 	kicker.hold_pos = kicker.global_position
+	kicker.marker.visible = true       # marcar al pateador
 	for p in players:
 		if p != kicker:
 			p.hold_pos = Vector3(clampf(p.global_position.x, -30, 30), 0.0,
@@ -950,8 +990,9 @@ func _setup_kick_at_goal(pts: int, team: int, spot: Vector3) -> void:
 	ball.freeze = true
 	ball.global_position = conv_kick_pos + Vector3(0, 0.2, 0)
 	ball.linear_velocity = Vector3.ZERO
-	cam.set_override(conv_kick_pos + Vector3(0, 3.2, -conv_dir * 8.0),
-		Vector3(0, 2.6, conv_dir * TRY_Z))
+	# cámara centrada y medio alejada: ve al pateador y los palos
+	cam.set_override(Vector3(0, 7.0, -conv_dir * 20.0),
+		Vector3(0, 3.0, conv_dir * TRY_Z))
 	phase = Phase.CONVERSION
 	conv_done_flag = false
 	if conv_team == 0:
@@ -959,7 +1000,7 @@ func _setup_kick_at_goal(pts: int, team: int, spot: Vector3) -> void:
 		conv_aim = 0.0
 		conv_aim_dir = 1.0
 		ui.conv_show()
-		ui.conv_set_instr("ESPACIO: fijar dirección")
+		ui.conv_set_instr("A/D apuntar · ESPACIO confirmar")
 	else:
 		conv_state = ConvState.WAIT_AI
 		conv_t = 1.6
@@ -968,13 +1009,12 @@ func _setup_kick_at_goal(pts: int, team: int, spot: Vector3) -> void:
 func _update_conversion(delta: float) -> void:
 	match conv_state:
 		ConvState.AIM:
-			conv_aim += conv_aim_dir * delta * 1.5
-			if conv_aim > 1.0:
-				conv_aim = 1.0
-				conv_aim_dir = -1.0
-			elif conv_aim < -1.0:
-				conv_aim = -1.0
-				conv_aim_dir = 1.0
+			# aim directo: A/D mueve la puntería, sin oscilación automática
+			if Input.is_action_pressed("pass_left"):
+				conv_aim -= delta * 1.2
+			if Input.is_action_pressed("pass_right"):
+				conv_aim += delta * 1.2
+			conv_aim = clampf(conv_aim, -1.0, 1.0)
 			ui.conv_set_aim(conv_aim)
 			if Input.is_action_just_pressed("pass"):
 				conv_state = ConvState.POWER
@@ -1012,8 +1052,8 @@ func _update_conversion(delta: float) -> void:
 						conv_power = rng.randf_range(0.12, 0.28)
 				_conv_execute()
 		ConvState.FLY:
-			# paneo broadcast: cámara baja sigue la pelota hacia los palos
-			cam.set_override(conv_kick_pos + Vector3(0, 3.2, -conv_dir * 8.0),
+			# paneo broadcast: cámara centrada sigue la pelota hacia los palos
+			cam.set_override(Vector3(0, 7.0, -conv_dir * 20.0),
 				ball.global_position + Vector3(0, 0.4, 0))
 			var z := ball.global_position.z
 			var posts_z := float(conv_dir) * TRY_Z
@@ -1046,6 +1086,8 @@ func _update_conversion(delta: float) -> void:
 			if conv_t <= 0.0:
 				cam.clear_override()
 				ui.conv_hide()
+				if conv_kicker != null:
+					conv_kicker.marker.visible = false
 				reset_for_kickoff(1 - conv_team)
 
 
@@ -1056,7 +1098,9 @@ func _conv_execute() -> void:
 	ball.release()
 	ball.global_position = conv_kick_pos + Vector3(0, 0.3, 0)
 	var a := conv_aim * 0.5
-	var dir := Vector3(sin(a), 0.0, cos(a) * conv_dir).normalized()
+	# el aim es relativo a la vista del pateador: izquierda siempre es
+	# izquierda desde la cámara, sin importar hacia qué in-goal ataca
+	var dir := Vector3(sin(a) * conv_dir, 0.0, cos(a) * conv_dir).normalized()
 	var sp := 11.0 + conv_power * 16.0
 	ball.linear_velocity = dir * sp + Vector3(0, 7.5 + conv_power * 5.0, 0)
 	_kick_sfx()

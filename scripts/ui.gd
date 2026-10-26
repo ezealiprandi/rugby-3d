@@ -43,6 +43,9 @@ var pres_names: Label
 var replay_top: ColorRect
 var replay_bot: ColorRect
 var replay_tag: Label
+var replay_intro: ColorRect
+var replay_intro_lbl: Label
+var replay_intro_tween: Tween
 var scorer_panel: PanelContainer
 var scorer_lbl: Label
 var scorer_bar: ColorRect
@@ -95,20 +98,20 @@ func _ready() -> void:
 	clock_lbl.visible = false
 
 	msg_lbl = _mk_label(48)
-	msg_lbl.set_anchors_preset(Control.PRESET_CENTER)
-	msg_lbl.custom_minimum_size.x = 1280
-	msg_lbl.position = Vector2(-640, -80)
+	msg_lbl.set_anchors_preset(Control.PRESET_HCENTER_WIDE)
+	msg_lbl.offset_top = -80
+	msg_lbl.offset_bottom = 20
 
 	hint_lbl = _mk_label(22)
-	hint_lbl.set_anchors_preset(Control.PRESET_CENTER)
-	hint_lbl.custom_minimum_size.x = 1280
-	hint_lbl.position = Vector2(-640, 90)
+	hint_lbl.set_anchors_preset(Control.PRESET_HCENTER_WIDE)
+	hint_lbl.offset_top = 90
+	hint_lbl.offset_bottom = 120
 	hint_lbl.add_theme_color_override("font_color", Color(1, 0.9, 0.3))
 
 	pause_lbl = _mk_label(44)
-	pause_lbl.set_anchors_preset(Control.PRESET_CENTER)
-	pause_lbl.custom_minimum_size.x = 1280
-	pause_lbl.position = Vector2(-640, -30)
+	pause_lbl.set_anchors_preset(Control.PRESET_HCENTER_WIDE)
+	pause_lbl.offset_top = -30
+	pause_lbl.offset_bottom = 30
 	pause_lbl.text = "PAUSA"
 	pause_lbl.visible = false
 
@@ -646,6 +649,37 @@ func _build_broadcast() -> void:
 		r.visible = false
 		add_child(r)
 
+	# pantalla animada de intro de repetición (estilo noticiero)
+	replay_intro = ColorRect.new()
+	replay_intro.color = Color(0.02, 0.02, 0.04, 0.96)
+	replay_intro.set_anchors_preset(Control.PRESET_FULL_RECT)
+	replay_intro.visible = false
+	add_child(replay_intro)
+	var ri_vb := VBoxContainer.new()
+	ri_vb.set_anchors_preset(Control.PRESET_FULL_RECT)
+	ri_vb.alignment = BoxContainer.ALIGNMENT_CENTER
+	replay_intro.add_child(ri_vb)
+	var ri_spacer := Control.new()
+	ri_spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	ri_vb.add_child(ri_spacer)
+	replay_intro_lbl = Label.new()
+	replay_intro_lbl.text = "◉  REPETICIÓN  ◉"
+	replay_intro_lbl.add_theme_font_size_override("font_size", 72)
+	replay_intro_lbl.add_theme_color_override("font_color", Color(1.0, 0.85, 0.15))
+	replay_intro_lbl.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.95))
+	replay_intro_lbl.add_theme_constant_override("outline_size", 8)
+	replay_intro_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	ri_vb.add_child(replay_intro_lbl)
+	var ri_sub := Label.new()
+	ri_sub.text = "URT TV · EN DIRECTO"
+	ri_sub.add_theme_font_size_override("font_size", 22)
+	ri_sub.add_theme_color_override("font_color", Color(1.0, 0.35, 0.3))
+	ri_sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	ri_vb.add_child(ri_sub)
+	var ri_spacer2 := Control.new()
+	ri_spacer2.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	ri_vb.add_child(ri_spacer2)
+
 	# alineaciones XV titular de ambos clubes
 	lineup_panel = CenterContainer.new()
 	lineup_panel.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -864,6 +898,27 @@ func replay_overlay(on: bool) -> void:
 	replay_top.visible = on
 	replay_bot.visible = on
 	replay_tag.visible = on
+
+
+func replay_intro_show() -> void:
+	replay_intro.visible = true
+	replay_intro.modulate.a = 0.0
+	replay_intro_lbl.position.x = -300
+	if replay_intro_tween != null:
+		replay_intro_tween.kill()
+	replay_intro_tween = create_tween()
+	replay_intro_tween.set_parallel(true)
+	replay_intro_tween.tween_property(replay_intro, "modulate:a", 1.0, 0.35)
+	replay_intro_tween.tween_property(replay_intro_lbl, "position:x", 0, 0.5) \
+		.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+
+
+func replay_intro_hide() -> void:
+	if replay_intro_tween != null:
+		replay_intro_tween.kill()
+	replay_intro_tween = create_tween()
+	replay_intro_tween.tween_property(replay_intro, "modulate:a", 0.0, 0.4)
+	replay_intro_tween.tween_callback(func(): replay_intro.visible = false)
 
 
 func card_show(team: int, is_red: bool) -> void:

@@ -811,8 +811,8 @@ func _opt_info(i: int) -> Array:
 func _cycle_option(i: int) -> void:
 	match i:
 		0:
-			var lens := [120.0, 180.0, 300.0]
-			game.half_len = lens[(lens.find(game.half_len) + 1) % 3]
+			var lens := [300.0, 420.0, 600.0, 900.0, 1200.0, 2400.0]
+			game.half_len = lens[(lens.find(game.half_len) + 1) % lens.size()]
 		1:
 			game.opt_difficulty = (game.opt_difficulty + 1) % 3
 		2:

@@ -384,13 +384,18 @@ func _physics_process(delta: float) -> void:
 		return
 
 	var wish := _desired_velocity()
-	# fatiga: correr fuerte gasta, trotar recupera
+	# fatiga tipo Rugby 25: sprint gasta rápido, caminar recupera lento
 	var run := Vector2(wish.x, wish.z).length()
-	if run > 8.0:
-		stamina = clampf(stamina - delta * 0.07, 0.0, 1.0)
+	var sprinting := run > BASE_SPEED * 0.9
+	if sprinting:
+		stamina = clampf(stamina - delta * 0.18, 0.0, 1.0)
 	else:
-		stamina = clampf(stamina + delta * 0.05, 0.0, 1.0)
-	wish *= 0.7 + 0.3 * stamina
+		stamina = clampf(stamina + delta * 0.04, 0.0, 1.0)
+	# sin stamina: forzado a caminar (no puede sprintar)
+	if stamina < 0.15:
+		wish *= 0.45
+	else:
+		wish *= 0.55 + 0.45 * stamina
 	velocity.x = wish.x
 	velocity.z = wish.z
 
@@ -446,6 +451,9 @@ func _desired_velocity() -> Vector3:
 			sprint_on = not sprint_on
 		var sprinting: bool = sprint_on if game.opt_sprint_toggle \
 			else Input.is_action_pressed("sprint")
+		# sin stamina: no puede sprintar, forzado a caminar
+		if stamina < 0.15:
+			sprinting = false
 		var sp := (SPRINT_SPEED if sprinting else BASE_SPEED) \
 			* speed_mult
 		if game.ball.carrier == self:
