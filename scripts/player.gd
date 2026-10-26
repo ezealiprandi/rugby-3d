@@ -485,6 +485,12 @@ func _desired_velocity() -> Vector3:
 				var dist_try := RugbyGame.TRY_Z - global_position.z * adir
 				if dist_try > 0.0 and dist_try < 6.0:
 					_start_dive(Vector3(0, 0, adir))
+			else:
+				# avisar que la palomita está disponible cerca del in-goal
+				var adir := float(game.attack_dir[team])
+				var dist_try := RugbyGame.TRY_Z - global_position.z * adir
+				if dist_try > 0.0 and dist_try < 7.5:
+					game.ui.flash_hint("¡F: PALOMITA al try!")
 		elif Input.is_action_just_pressed("tackle") and dive_cd <= 0.0:
 			var c := game.ball.carrier
 			if c != null and c.team != team:

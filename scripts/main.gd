@@ -68,6 +68,10 @@ var conv_prev_z := 0.0
 var conv_t := 0.0
 var conv_done_flag := false
 var conv_kicker: RugbyPlayer = null
+var conv_aim_marker: MeshInstance3D   # retícula 3D del objetivo en la H
+var conv_trail: MeshInstance3D        # línea de trayectoria ball→objetivo
+const CONV_SWEET_LO := 0.60           # zona verde de la barra de potencia
+const CONV_SWEET_HI := 0.80
 var confetti: GPUParticles3D = null
 var celebrate_all_team := -1   # todo el equipo festeja (campeón del torneo)
 
@@ -995,6 +999,35 @@ func _setup_kick_at_goal(pts: int, team: int, spot: Vector3) -> void:
 	ball.freeze = true
 	ball.global_position = conv_kick_pos + Vector3(0, 0.2, 0)
 	ball.linear_velocity = Vector3.ZERO
+	# retícula 3D del objetivo entre los palos + línea de trayectoria
+	if conv_aim_marker == null:
+		conv_aim_marker = MeshInstance3D.new()
+		var am := SphereMesh.new()
+		am.radius = 0.28
+		am.height = 0.56
+		conv_aim_marker.mesh = am
+		var amat := StandardMaterial3D.new()
+		amat.albedo_color = Color(1.0, 0.85, 0.1)
+		amat.emission_enabled = true
+		amat.emission = Color(1.0, 0.75, 0.1)
+		amat.emission_energy_multiplier = 3.0
+		conv_aim_marker.material_override = amat
+		add_child(conv_aim_marker)
+		var tl := MeshInstance3D.new()
+		var tlm := BoxMesh.new()
+		tlm.size = Vector3(0.07, 0.07, 1.0)
+		tl.mesh = tlm
+		var tlmat := StandardMaterial3D.new()
+		tlmat.albedo_color = Color(1.0, 0.9, 0.3, 0.55)
+		tlmat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		tlmat.emission_enabled = true
+		tlmat.emission = Color(1.0, 0.85, 0.2)
+		tlmat.emission_energy_multiplier = 1.4
+		conv_trail = tl
+		conv_trail.material_override = tlmat
+		add_child(conv_trail)
+	conv_aim_marker.visible = conv_team == 0
+	conv_trail.visible = conv_team == 0
 	# cámara centrada y medio alejada: ve al pateador y los palos
 	cam.set_override(Vector3(0, 7.0, -conv_dir * 20.0),
 		Vector3(0, 3.0, conv_dir * TRY_Z))
@@ -1003,9 +1036,8 @@ func _setup_kick_at_goal(pts: int, team: int, spot: Vector3) -> void:
 	if conv_team == 0:
 		conv_state = ConvState.AIM
 		conv_aim = 0.0
-		conv_aim_dir = 1.0
 		ui.conv_show()
-		ui.conv_set_instr("A/D apuntar · ESPACIO confirmar")
+		ui.conv_set_instr("A/D apuntar · ESPACIO cargar potencia")
 	else:
 		conv_state = ConvState.WAIT_AI
 		conv_t = 1.6
@@ -1014,28 +1046,33 @@ func _setup_kick_at_goal(pts: int, team: int, spot: Vector3) -> void:
 func _update_conversion(delta: float) -> void:
 	match conv_state:
 		ConvState.AIM:
-			# aim directo: A/D mueve la puntería, sin oscilación automática
-			if Input.is_action_pressed("pass_left"):
-				conv_aim -= delta * 1.2
-			if Input.is_action_pressed("pass_right"):
-				conv_aim += delta * 1.2
+			# aim directo con A/D: mueve la retícula sobre la línea de gol
+			if Input.is_action_pressed("move_left"):
+				conv_aim -= delta * 0.9
+			if Input.is_action_pressed("move_right"):
+				conv_aim += delta * 0.9
 			conv_aim = clampf(conv_aim, -1.0, 1.0)
 			ui.conv_set_aim(conv_aim)
+			# retícula 3D sobre la H + línea de trayectoria desde la pelota
+			var goal_z := conv_dir * TRY_Z
+			var aim_x := conv_aim * 4.2
+			conv_aim_marker.global_position = Vector3(aim_x, 3.4, goal_z)
+			var bp := ball.global_position + Vector3(0, 0.35, 0)
+			var mid := (bp + conv_aim_marker.global_position) * 0.5
+			mid.y += 2.0                                # arco de la trayectoria
+			conv_trail.global_position = mid
+			conv_trail.look_at(conv_aim_marker.global_position, Vector3.UP)
+			conv_trail.scale = Vector3(1, 1,
+				bp.distance_to(conv_aim_marker.global_position))
 			if Input.is_action_just_pressed("pass"):
 				conv_state = ConvState.POWER
 				conv_power = 0.0
-				conv_power_dir = 1.0
-				ui.conv_set_instr("ESPACIO: potencia")
+				ui.conv_set_instr("ESPACIO en la zona verde")
 		ConvState.POWER:
-			conv_power += conv_power_dir * delta * 1.4
-			if conv_power > 1.0:
-				conv_power = 1.0
-				conv_power_dir = -1.0
-			elif conv_power < 0.0:
-				conv_power = 0.0
-				conv_power_dir = 1.0
+			# la barra se carga una sola vez: soltar en la zona verde = preciso
+			conv_power = minf(conv_power + delta * 0.72, 1.0)
 			ui.conv_set_power(conv_power)
-			if Input.is_action_just_pressed("pass"):
+			if Input.is_action_just_pressed("pass") or conv_power >= 1.0:
 				_conv_execute()
 		ConvState.WAIT_AI:
 			conv_t -= delta
@@ -1098,16 +1135,29 @@ func _update_conversion(delta: float) -> void:
 
 func _conv_execute() -> void:
 	ui.conv_hide()
+	conv_aim_marker.visible = false
+	conv_trail.visible = false
 	if conv_kicker != null:
 		conv_kicker.kick_anim_t = 0.6
 	ball.release()
 	ball.global_position = conv_kick_pos + Vector3(0, 0.3, 0)
-	var a := conv_aim * 0.5
-	# el aim es relativo a la vista del pateador: izquierda siempre es
-	# izquierda desde la cámara, sin importar hacia qué in-goal ataca
-	var dir := Vector3(sin(a) * conv_dir, 0.0, cos(a) * conv_dir).normalized()
-	var sp := 11.0 + conv_power * 16.0
-	ball.linear_velocity = dir * sp + Vector3(0, 7.5 + conv_power * 5.0, 0)
+	# precisión según dónde se soltó la potencia: en la zona verde va a la
+	# retícula; fuera, la pelota se desvía o queda corta
+	var err := 0.0
+	if conv_team == 0:
+		if conv_power < CONV_SWEET_LO:
+			err = -1.0 + conv_power / CONV_SWEET_LO          # corta y desviada
+		elif conv_power > CONV_SWEET_HI:
+			err = (conv_power - CONV_SWEET_HI) / (1.0 - CONV_SWEET_HI)
+		err *= signf(rng.randf() - 0.5) * rng.randf_range(0.35, 0.9)
+	var aim_x := (conv_aim + err) * 4.2
+	var target := Vector3(aim_x, 4.6, conv_dir * TRY_Z)
+	var dir3 := (target - ball.global_position)
+	var flat := Vector3(dir3.x, 0.0, dir3.z)
+	var dist := flat.length()
+	var speed := 13.0 + conv_power * 15.0
+	flat = flat.normalized() * speed
+	ball.linear_velocity = Vector3(flat.x, 5.8 + conv_power * 6.0, flat.z)
 	_kick_sfx()
 	ball.angular_velocity = Vector3(-conv_dir, 0, 0) * 12.0
 	ball.release_guard = 0.4
