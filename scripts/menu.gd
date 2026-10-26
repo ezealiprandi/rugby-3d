@@ -399,6 +399,7 @@ func _ready() -> void:
 			ob.add_theme_stylebox_override("focus",
 				_btn_style(Color(0.2, 0.16, 0.3), Color(1.0, 0.85, 0.2)))
 			ob.pressed.connect(_cycle_option.bind(spec))
+			ob.set_meta("opt_idx", spec)
 			opt_box.add_child(ob)
 			opt_btns.append(ob)
 
@@ -851,7 +852,7 @@ func _refresh_options() -> void:
 	for hl in opt_hdrs:
 		hl.text = "— " + T(opt_hdrs[hl]) + " —"
 	for i in opt_btns.size():
-		var info := _opt_info(i)
+		var info := _opt_info(int(opt_btns[i].get_meta("opt_idx")))
 		opt_btns[i].text = "%-20s  < %s >" % [info[0], info[1]]
 
 
