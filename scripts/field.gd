@@ -12,6 +12,7 @@ var env_node: WorldEnvironment
 var sun_node: DirectionalLight3D
 var rain: GPUParticles3D
 var grass_mats: Array[ShaderMaterial] = []
+var night_fill: OmniLight3D
 var floodlights: Array = []          # SpotLight3D de cada torre (noche)
 var crowd_mm: MultiMesh = null       # hinchada (para teñir de colores del club)
 var crowd_palette: Array = []
@@ -73,10 +74,12 @@ func _build_env() -> void:
 	env.background_mode = Environment.BG_SKY
 	var sky := Sky.new()
 	var psm := ProceduralSkyMaterial.new()
-	psm.sky_top_color = Color(0.16, 0.3, 0.62)          # tarde-noche
-	psm.sky_horizon_color = Color(0.75, 0.62, 0.5)
-	psm.ground_bottom_color = Color(0.1, 0.16, 0.1)
-	psm.ground_horizon_color = Color(0.45, 0.5, 0.5)
+	psm.sky_top_color = Color(0.12, 0.22, 0.5)          # azul profundo arriba
+	psm.sky_horizon_color = Color(1.0, 0.55, 0.25)      # naranja fuego en el horizonte
+	psm.ground_bottom_color = Color(0.1, 0.12, 0.08)
+	psm.ground_horizon_color = Color(0.85, 0.5, 0.3)
+	psm.sun_angle_max = 12.0
+	psm.sun_curve = 0.12
 	sky.sky_material = psm
 	env.sky = sky
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
@@ -102,8 +105,8 @@ func _build_env() -> void:
 	sun.shadow_enabled = true
 	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS
 	sun.directional_shadow_max_distance = 190.0
-	sun.light_energy = 1.1
-	sun.light_color = Color(1.0, 0.92, 0.8)             # luz cálida de atardecer
+	sun.light_energy = 1.25
+	sun.light_color = Color(1.0, 0.75, 0.45)            # dorado de atardecer
 	sun_node = sun
 	add_child(sun)
 
@@ -112,14 +115,17 @@ func _build_env() -> void:
 func set_weather(is_rain: bool) -> void:
 	if env_node != null:
 		env_node.environment.fog_density = 0.0042 if is_rain else 0.0014
-		var psm := env_node.environment.sky.sky_material as ProceduralSkyMaterial
-		if psm != null:
-			psm.sky_top_color = Color(0.28, 0.3, 0.34) if is_rain \
-				else Color(0.16, 0.3, 0.62)
-			psm.sky_horizon_color = Color(0.45, 0.47, 0.5) if is_rain \
-				else Color(0.75, 0.62, 0.5)
+		if is_rain:  # lluvia: mismo horario pero oscurecido y gris
+			var psm := env_node.environment.sky.sky_material as ProceduralSkyMaterial
+			if psm != null:
+				var c := _sky_colors()
+				psm.sky_top_color = (c[0] as Color).lerp(Color(0.3, 0.33, 0.38), 0.72)
+				psm.sky_horizon_color = (c[1] as Color).lerp(Color(0.55, 0.57, 0.6), 0.72)
+				psm.energy_multiplier = (c[4] as float) * 0.55
+		else:
+			_apply_sky()
 	if sun_node != null:
-		sun_node.light_energy = 0.55 if is_rain else 1.1
+		sun_node.light_energy = sun_energy * (0.45 if is_rain else 1.0)
 	for gm in grass_mats:
 		gm.set_shader_parameter("wet", 1.0 if is_rain else 0.0)
 	if is_rain:
@@ -535,44 +541,97 @@ func _build_floodlights() -> void:
 			spot.light_color = Color(1.0, 0.96, 0.85)
 			spot.visible = false
 			add_child(spot)
-			spot.look_at(Vector3(0.0, 0.0, 0.0), Vector3.UP)
+			# cada torre cubre su cuadrante: iluminación pareja en toda la cancha
+			spot.look_at(Vector3(sx * 24.0, 0.0, sz * 37.0), Vector3.UP)
 			floodlights.append(spot)
+	# relleno cenital suave para que el campo no quede en penumbra de noche
+	night_fill = OmniLight3D.new()
+	night_fill.position = Vector3(0.0, 30.0, 0.0)
+	night_fill.omni_range = 120.0
+	night_fill.light_energy = 2.2
+	night_fill.light_color = Color(0.9, 0.95, 1.0)
+	night_fill.visible = false
+	add_child(night_fill)
+	floodlights.append(night_fill)
+
+
+var tod_mode := "sunset"
+var sun_energy := 1.25
+
+# paleta por horario: [top, horizonte, suelo_abajo, suelo_horizonte, energía]
+func _sky_colors() -> Array:
+	match tod_mode:
+		"day":
+			return [Color(0.12, 0.38, 0.9), Color(0.65, 0.8, 0.97),
+				Color(0.35, 0.48, 0.6), Color(0.6, 0.72, 0.85), 1.15]
+		"night":
+			return [Color(0.008, 0.015, 0.05), Color(0.04, 0.06, 0.14),
+				Color(0.01, 0.015, 0.04), Color(0.05, 0.07, 0.13), 0.3]
+		_:  # sunset
+			return [Color(0.10, 0.18, 0.45), Color(1.0, 0.52, 0.2),
+				Color(0.18, 0.14, 0.12), Color(0.78, 0.45, 0.3), 1.4]
 
 
 # momento del día: día, atardecer o noche (con focos encendidos)
 func set_daytime(mode: String) -> void:
 	if env_node == null or sun_node == null:
 		return
-	var psm := env_node.environment.sky.sky_material as ProceduralSkyMaterial
+	tod_mode = mode
+	var env := env_node.environment
 	match mode:
-		"day":
-			sun_node.light_energy = 1.35
-			sun_node.light_color = Color(1.0, 0.98, 0.94)
-			sun_node.rotation_degrees = Vector3(-62.0, -20.0, 0.0)
-			if psm != null:
-				psm.sky_top_color = Color(0.28, 0.5, 0.85)
-				psm.sky_horizon_color = Color(0.72, 0.8, 0.9)
-				psm.ground_bottom_color = Color(0.25, 0.3, 0.3)
-			env_node.environment.ambient_light_energy = 0.9
-		"night":
-			sun_node.light_energy = 0.18
-			sun_node.light_color = Color(0.55, 0.65, 1.0)
-			if psm != null:
-				psm.sky_top_color = Color(0.01, 0.03, 0.1)
-				psm.sky_horizon_color = Color(0.06, 0.08, 0.16)
-				psm.ground_bottom_color = Color(0.01, 0.02, 0.04)
-			env_node.environment.ambient_light_energy = 0.28
-		_:  # "sunset": el look original
-			sun_node.light_energy = 1.1
-			sun_node.light_color = Color(1.0, 0.92, 0.8)
-			sun_node.rotation_degrees = Vector3(-52.0, -25.0, 0.0)
-			if psm != null:
-				psm.sky_top_color = Color(0.16, 0.3, 0.62)
-				psm.sky_horizon_color = Color(0.75, 0.62, 0.5)
-				psm.ground_bottom_color = Color(0.2, 0.22, 0.25)
-			env_node.environment.ambient_light_energy = 0.75
+		"day":   # mañana luminosa: cielo azul limpio, sol blanco y alto
+			sun_energy = 1.45
+			sun_node.light_energy = sun_energy
+			sun_node.light_color = Color(1.0, 0.99, 0.95)
+			sun_node.rotation_degrees = Vector3(-55.0, -30.0, 0.0)
+			env.ambient_light_energy = 1.0
+			env.ambient_light_sky_contribution = 1.0
+			env.fog_density = 0.0011
+			env.fog_light_color = Color(0.78, 0.85, 0.95)
+			env.fog_sky_affect = 0.25         # la niebla no lave el cielo azul
+		"night": # noche de estadio: cielo casi negro, faros al máximo
+			sun_energy = 0.12
+			sun_node.light_energy = sun_energy
+			sun_node.light_color = Color(0.5, 0.6, 0.95)
+			sun_node.rotation_degrees = Vector3(-50.0, -30.0, 0.0)
+			env.ambient_light_energy = 0.35
+			env.ambient_light_sky_contribution = 0.6
+			env.fog_density = 0.0018
+			env.fog_light_color = Color(0.1, 0.13, 0.2)
+			env.fog_sky_affect = 0.15
+		_:       # "sunset": atardecer dorado tucumano
+			sun_energy = 1.25
+			sun_node.light_energy = sun_energy
+			sun_node.light_color = Color(1.0, 0.72, 0.42)
+			sun_node.rotation_degrees = Vector3(-38.0, -35.0, 0.0)
+			env.ambient_light_energy = 0.8
+			env.ambient_light_sky_contribution = 1.0
+			env.fog_density = 0.0014
+			env.fog_light_color = Color(0.92, 0.72, 0.6)
+			env.fog_sky_affect = 0.45
+	_apply_sky()
 	for s in floodlights:
 		s.visible = mode == "night"
+		if mode == "night":
+			if s is SpotLight3D:
+				s.light_energy = 32.0          # faros reales: el campo bien iluminado
+				s.spot_angle = 52.0
+				s.light_color = Color(1.0, 0.97, 0.9)
+			elif s is OmniLight3D:
+				s.light_energy = 3.2
+
+
+# aplica la paleta del horario al material del cielo
+func _apply_sky() -> void:
+	var psm := env_node.environment.sky.sky_material as ProceduralSkyMaterial
+	if psm == null:
+		return
+	var c := _sky_colors()
+	psm.sky_top_color = c[0]
+	psm.sky_horizon_color = c[1]
+	psm.ground_bottom_color = c[2]
+	psm.ground_horizon_color = c[3]
+	psm.energy_multiplier = c[4]
 
 
 func _build_photographers() -> void:
