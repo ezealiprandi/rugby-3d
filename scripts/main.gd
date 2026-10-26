@@ -147,10 +147,12 @@ func _ready() -> void:
 	rng.randomize()
 	_register_input()
 	field = RugbyField.build(self)
+	field.process_mode = Node.PROCESS_MODE_PAUSABLE
 	_spawn_ball()
 	ball.global_position = Vector3(0.0, 0.6, 0.0)
 	cam = RugbyCam.new()
 	cam.game = self
+	cam.process_mode = Node.PROCESS_MODE_PAUSABLE
 	add_child(cam)
 	ui = RugbyUI.new()
 	ui.game = self
@@ -308,6 +310,7 @@ func _whistle() -> void:
 func _spawn_ball() -> void:
 	ball = RugbyBall.new()
 	ball.game = self
+	ball.process_mode = Node.PROCESS_MODE_PAUSABLE
 	add_child(ball)
 
 
@@ -348,12 +351,14 @@ func _spawn_players() -> void:
 			p.jersey_tex = RugbyTeams.jersey_texture(club_idx, use_alt)
 			p.jersey_tex_alt = p.jersey_tex
 			p.pname = RugbyTeams.SQUADS[club_idx][i]
+			p.process_mode = Node.PROCESS_MODE_PAUSABLE
 			add_child(p)
 			players.append(p)
 	# árbitro + jueces de touch
 	if referee == null:
 		referee = RugbyReferee.new()
 		referee.game = self
+		referee.process_mode = Node.PROCESS_MODE_PAUSABLE
 		add_child(referee)
 		referee.build_match()
 	referee.global_position = Vector3(4.0, 0.0, -8.0)
@@ -1223,6 +1228,7 @@ func _confetti(pos: Vector3, club_col: Color) -> void:
 		cm.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
 		quad.material = cm
 		confetti.draw_pass_1 = quad
+		confetti.process_mode = Node.PROCESS_MODE_PAUSABLE
 		add_child(confetti)
 	var grad := Gradient.new()
 	grad.set_color(0, Color(1.0, 0.84, 0.2))

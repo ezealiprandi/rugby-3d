@@ -384,18 +384,18 @@ func _physics_process(delta: float) -> void:
 		return
 
 	var wish := _desired_velocity()
-	# fatiga tipo Rugby 25: sprint gasta rápido, caminar recupera lento
+	# fatiga tipo FIFA: SOLO el sprint/chase gasta (run > trote), y gasta
+	# lento — ~20s de sprint continuo. Trotar y parado recuperan.
 	var run := Vector2(wish.x, wish.z).length()
-	var sprinting := run > BASE_SPEED * 0.9
-	if sprinting:
-		stamina = clampf(stamina - delta * 0.18, 0.0, 1.0)
+	if run > 7.8:
+		stamina = clampf(stamina - delta * 0.05, 0.0, 1.0)
 	else:
-		stamina = clampf(stamina + delta * 0.04, 0.0, 1.0)
-	# sin stamina: forzado a caminar (no puede sprintar)
+		stamina = clampf(stamina + delta * 0.07, 0.0, 1.0)
+	# sin stamina: camina, no puede sprintar
 	if stamina < 0.15:
-		wish *= 0.45
+		wish *= 0.55
 	else:
-		wish *= 0.55 + 0.45 * stamina
+		wish *= 0.7 + 0.3 * stamina
 	velocity.x = wish.x
 	velocity.z = wish.z
 
@@ -479,15 +479,26 @@ func _desired_velocity() -> Vector3:
 				_do_dummy()
 			if Input.is_action_just_pressed("fend") and cool_fend <= 0.0:
 				_do_fend()
+			if Input.is_action_just_pressed("tackle") and dive_cd <= 0.0:
+				# palomita al in-goal: lanzarse para alcanzar la línea de try
+				var adir := float(game.attack_dir[team])
+				var dist_try := RugbyGame.TRY_Z - global_position.z * adir
+				if dist_try > 0.0 and dist_try < 6.0:
+					_start_dive(Vector3(0, 0, adir))
 		elif Input.is_action_just_pressed("tackle") and dive_cd <= 0.0:
 			var c := game.ball.carrier
-			var dir := facing
 			if c != null and c.team != team:
 				var to := c.global_position - global_position
 				to.y = 0.0
-				if to.length() > 0.1:
-					dir = to.normalized()
-			_start_dive(dir)
+				if to.length() < 2.5:
+					# placaje de pie: envuelve al rival sin lanzarse al piso
+					facing = to.normalized()
+					hit_t = 0.45
+					dive_cd = 0.5
+				else:
+					_start_dive(to.normalized())
+			else:
+				_start_dive(facing)
 		return d * sp
 	return _ai_velocity()
 
@@ -763,7 +774,7 @@ func _try_tackle() -> void:
 		return
 	if game.phase != RugbyGame.Phase.PLAY:
 		return
-	var reach := RugbyGame.TACKLE_RANGE * (1.0 if game.controlled != self else 1.25)
+	var reach := RugbyGame.TACKLE_RANGE * (1.0 if game.controlled != self else 1.75)
 	if dive_t > 0.0:
 		reach = 2.1
 	if c.step_t > 0.0:
