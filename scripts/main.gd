@@ -125,17 +125,20 @@ var opt_camera := 0                  # 0 broadcast · 1 cercana · 2 lejana  # e
 var offload_t := 0.0          # ventana para soltar la pelota al ser placado
 var offloader: RugbyPlayer = null  # el jugador apretó F para competir en el ruck
 
-# forcejeo post-placaje: barra de timing ×5 cada vez más rápida
+# forcejeo post-placaje: machacar ESPACIO (retenés) o barra de timing (robás)
 var contest_carrier: RugbyPlayer = null
 var contest_steal := false      # false = te placaron y retenés · true = placaste y robás
+var contest_mash := false       # true = machacar ESPACIO · false = barra de timing
 var contest_prompt := false     # esperando F para arrancar el forcejeo de robo
 var contest_active := false     # minijuego corriendo
 var contest_t := 0.0            # tiempo límite
+var contest_total := 5.0        # duración del forcejeo (para la barra)
 var contest_hits := 0
+var contest_need := 5
 var contest_cursor := 0.0
 var contest_sway := 1.0
 var contest_speed := 1.0
-var contest_zone := Vector2(0.52, 0.78)
+var contest_zone := Vector2(0.5, 0.82)
 var crowd_boost := 0.0        # sube el volumen de la tribuna un momento
 
 # ventaja del árbitro
@@ -181,7 +184,7 @@ func _ready() -> void:
 	menu.game = self
 	add_child(menu)
 	sfx_whistle = _mk_audio("res://assets/whistle.wav", -6.0)
-	sfx_crowd = _mk_audio("res://assets/crowd.wav", -11.5)
+	sfx_crowd = _mk_audio("res://assets/crowd.wav", -5.0)
 	sfx_cheer = _mk_audio("res://assets/cheer.wav", -4.0)
 	sfx_rain = _mk_audio("res://assets/rain.wav", -18.0)
 	sfx_steps = _mk_audio("res://assets/steps.wav", -14.0)
@@ -424,7 +427,7 @@ func start_match(home: int, away: int, m := "friendly") -> void:
 	if sfx_crowd.stream != null:
 		# cada club suena un poco distinto: su hinchada tiene su tono
 		sfx_crowd.pitch_scale = 0.94 + (home % 6) * 0.035
-		sfx_crowd.volume_db = -11.5
+		sfx_crowd.volume_db = -5.0
 		crowd_boost = 0.0
 		if not sfx_crowd.playing:
 			sfx_crowd.play()
@@ -594,7 +597,7 @@ func _process(delta: float) -> void:
 	if crowd_boost > 0.0:
 		crowd_boost = maxf(0.0, crowd_boost - delta * 3.0)
 		if sfx_crowd.stream != null:
-			sfx_crowd.volume_db = -11.5 + crowd_boost
+			sfx_crowd.volume_db = -5.0 + crowd_boost
 
 	match phase:
 		Phase.MENU:
@@ -1268,10 +1271,10 @@ func _contest_start(steal: bool, c: RugbyPlayer) -> void:
 	contest_cursor = 0.0
 	contest_sway = 1.0
 	contest_speed = 1.0
-	contest_zone = Vector2(0.52, 0.78)
+	contest_zone = Vector2(0.5, 0.82)
 	offloader = null              # pausa el offload/breakdown: decide el forcejeo
 	offload_t = 0.0
-	c.tackled = maxf(c.tackled, 4.5)
+	c.tackled = maxf(c.tackled, 6.0)
 	if steal:
 		# vos placaste: 3s para apretar F y forcejear, si no el rival la mueve
 		contest_prompt = true
@@ -1279,12 +1282,15 @@ func _contest_start(steal: bool, c: RugbyPlayer) -> void:
 		contest_t = 3.0
 		ui.flash_hint("¡F: FORCEJEAR para robar!", 2.8)
 	else:
-		# te placaron: minijuego directo para retener la pelota
+		# te placaron: machacá ESPACIO para retener la pelota
+		contest_mash = true
+		contest_need = 5
 		contest_prompt = false
 		contest_active = true
-		contest_t = 4.0
+		contest_total = 5.0
+		contest_t = contest_total
 		ui.contest_show(false)
-		ui.flash_hint("¡ESPACIO en la zona verde ×5 para retener!", 3.6)
+		ui.contest_update_mash(0, contest_need, 1.0)
 
 
 func _contest_update(delta: float) -> void:
@@ -1292,8 +1298,11 @@ func _contest_update(delta: float) -> void:
 	if contest_prompt:
 		if Input.is_action_just_pressed("tackle"):
 			contest_prompt = false
+			contest_mash = false       # robo: barra de timing ×3
+			contest_need = 3
 			contest_active = true
-			contest_t = 4.0
+			contest_total = 4.5
+			contest_t = contest_total
 			ui.contest_show(true)
 		elif contest_t <= 0.0:
 			var c := contest_carrier
@@ -1303,7 +1312,22 @@ func _contest_update(delta: float) -> void:
 		return
 	if not contest_active:
 		return
-	contest_cursor += contest_sway * delta * contest_speed * 0.85
+	if contest_mash:
+		# retener: cada ESPACIO suma — hay que llegar antes de que se acabe
+		ui.contest_update_mash(contest_hits, contest_need,
+			maxf(0.0, contest_t / contest_total))
+		if Input.is_action_just_pressed("pass"):
+			contest_hits += 1
+			if sfx_kick.stream != null:
+				sfx_kick.pitch_scale = 0.9 + contest_hits * 0.06
+				sfx_kick.play()
+			if contest_hits >= contest_need:
+				_contest_end(true)
+		elif contest_t <= 0.0:
+			_contest_end(false)
+		return
+	# robar: barra de timing — ESPACIO cuando la aguja está en la zona
+	contest_cursor += contest_sway * delta * contest_speed * 0.7
 	if contest_cursor >= 1.0:
 		contest_cursor = 1.0
 		contest_sway = -1.0
@@ -1314,13 +1338,14 @@ func _contest_update(delta: float) -> void:
 	if Input.is_action_just_pressed("pass"):
 		if contest_cursor >= contest_zone.x and contest_cursor <= contest_zone.y:
 			contest_hits += 1
-			contest_speed *= 1.38        # cada acierto, la barra va más rápido
-			var w := 0.26 - contest_hits * 0.02   # y la zona se achica y se mueve
-			var zx := rng.randf_range(0.15, 0.85 - w)
+			contest_speed *= 1.22        # sube un poco, no se dispara
+			var w := 0.30 - contest_hits * 0.05
+			var zx := rng.randf_range(0.12, 0.88 - w)
 			contest_zone = Vector2(zx, zx + w)
 			if sfx_kick.stream != null:
+				sfx_kick.pitch_scale = 1.0
 				sfx_kick.play()
-			if contest_hits >= 5:
+			if contest_hits >= contest_need:
 				_contest_end(true)
 		else:
 			_contest_end(false)
@@ -1377,10 +1402,12 @@ func _contest_ai_moves_ball(c: RugbyPlayer) -> void:
 func _contest_clear() -> void:
 	contest_carrier = null
 	contest_steal = false
+	contest_mash = false
 	contest_prompt = false
 	contest_active = false
 	contest_t = 0.0
 	contest_hits = 0
+	sfx_kick.pitch_scale = 1.0
 	ui.contest_hide()
 
 

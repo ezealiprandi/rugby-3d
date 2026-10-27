@@ -36,6 +36,7 @@ var cont_panel: Panel
 var cont_instr: Label
 var cont_needle: ColorRect
 var cont_zone_rect: ColorRect
+var cont_fill: ColorRect
 var cont_pips: Array[ColorRect] = []
 
 # panel de stats post-partido
@@ -283,9 +284,9 @@ func _build_conversion_ui() -> void:
 # forcejeo post-placaje: barra de timing — ESPACIO en la zona verde ×5
 func _build_contest_ui() -> void:
 	cont_panel = Panel.new()
-	cont_panel.custom_minimum_size = Vector2(460, 118)
+	cont_panel.custom_minimum_size = Vector2(560, 130)
 	cont_panel.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
-	cont_panel.position = Vector2(-230, -170)
+	cont_panel.position = Vector2(-280, -180)
 	var sb := StyleBoxFlat.new()
 	sb.bg_color = Color(0, 0, 0, 0.7)
 	sb.corner_radius_top_left = 10
@@ -312,17 +313,22 @@ func _build_contest_ui() -> void:
 	vb.add_child(cont_instr)
 
 	var bar := Panel.new()
-	bar.custom_minimum_size = Vector2(0, 20)
+	bar.custom_minimum_size = Vector2(0, 30)
 	var bar_sb := StyleBoxFlat.new()
 	bar_sb.bg_color = Color(0.15, 0.15, 0.18)
 	bar.add_theme_stylebox_override("panel", bar_sb)
+	cont_fill = ColorRect.new()
+	cont_fill.color = Color(0.25, 0.75, 0.4)
+	cont_fill.size = Vector2(0, 30)
+	cont_fill.visible = false
+	bar.add_child(cont_fill)
 	cont_zone_rect = ColorRect.new()
 	cont_zone_rect.color = Color(0.2, 0.8, 0.3, 0.5)
-	cont_zone_rect.size = Vector2(60, 20)
+	cont_zone_rect.size = Vector2(60, 30)
 	bar.add_child(cont_zone_rect)
 	cont_needle = ColorRect.new()
 	cont_needle.color = Color(1.0, 0.85, 0.1)
-	cont_needle.size = Vector2(8, 20)
+	cont_needle.size = Vector2(9, 30)
 	bar.add_child(cont_needle)
 	vb.add_child(bar)
 
@@ -340,20 +346,41 @@ func _build_contest_ui() -> void:
 	cont_panel.visible = false
 
 
+const CONT_BAR_W := 505.0
+
 func contest_show(steal: bool) -> void:
-	cont_instr.text = "¡ROBÁ LA PELOTA! · ESPACIO en la zona verde ×5" \
+	cont_instr.text = "¡ROBÁ LA PELOTA! · ESPACIO en la zona verde ×3" \
 		if steal else \
-		"¡RETENÉ LA PELOTA! · ESPACIO en la zona verde ×5"
+		"¡RETENÉ LA PELOTA! · ¡MACHACÁ ESPACIO! ×5 en 5 segundos"
+	cont_fill.visible = not steal
+	cont_zone_rect.visible = steal
+	cont_needle.visible = steal
 	cont_panel.visible = true
 
 
 func contest_update(cursor: float, zone: Vector2, hits: int) -> void:
 	if cont_needle == null:
 		return
-	cont_needle.position.x = 5.0 + 400.0 * cursor
-	cont_zone_rect.position.x = 5.0 + 400.0 * zone.x
-	cont_zone_rect.size.x = 400.0 * (zone.y - zone.x)
+	cont_needle.position.x = 5.0 + CONT_BAR_W * cursor
+	cont_zone_rect.position.x = 5.0 + CONT_BAR_W * zone.x
+	cont_zone_rect.size.x = CONT_BAR_W * (zone.y - zone.x)
 	for i in cont_pips.size():
+		cont_pips[i].visible = i < 3
+		cont_pips[i].color = Color(0.95, 0.8, 0.1) if i < hits \
+			else Color(1, 1, 1, 0.18)
+
+
+# modo machacar: la barra se llena con cada ESPACIO
+func contest_update_mash(hits: int, need: int, tfrac: float) -> void:
+	if cont_fill == null:
+		return
+	cont_fill.size.x = CONT_BAR_W * (float(hits) / need)
+	cont_fill.color = Color(0.25, 0.75, 0.4).lerp(Color(1.0, 0.85, 0.1), \
+		float(hits) / need)
+	cont_instr.text = "¡MACHACÁ ESPACIO! %d/%d · %.1fs" % \
+		[hits, need, tfrac * 5.0]
+	for i in cont_pips.size():
+		cont_pips[i].visible = true
 		cont_pips[i].color = Color(0.95, 0.8, 0.1) if i < hits \
 			else Color(1, 1, 1, 0.18)
 

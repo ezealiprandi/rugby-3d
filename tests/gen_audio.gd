@@ -179,7 +179,7 @@ func _crowd() -> void:
 			+ 0.1 * sin(TAU * 0.037 * t + 1.7) \
 			+ 0.06 * sin(TAU * 0.51 * t)
 		var s := acc * 10.0 * swell + clap * (0.5 + 0.5 * swell)
-		data[i] = int(clampf(128.0 + s * 42.0, 0.0, 255.0))
+		data[i] = int(clampf(128.0 + s * 105.0, 0.0, 255.0))
 	_save_wav("res://assets/crowd.wav", data, true)
 
 
