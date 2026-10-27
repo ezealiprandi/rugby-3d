@@ -1284,13 +1284,13 @@ func _contest_start(steal: bool, c: RugbyPlayer) -> void:
 	else:
 		# te placaron: machacá ESPACIO para retener la pelota
 		contest_mash = true
-		contest_need = 5
+		contest_need = 10
 		contest_prompt = false
 		contest_active = true
-		contest_total = 5.0
+		contest_total = 4.5
 		contest_t = contest_total
 		ui.contest_show(false)
-		ui.contest_update_mash(0, contest_need, 1.0)
+		ui.contest_update_mash(0, contest_need, contest_t)
 
 
 func _contest_update(delta: float) -> void:
@@ -1315,7 +1315,7 @@ func _contest_update(delta: float) -> void:
 	if contest_mash:
 		# retener: cada ESPACIO suma — hay que llegar antes de que se acabe
 		ui.contest_update_mash(contest_hits, contest_need,
-			maxf(0.0, contest_t / contest_total))
+			maxf(0.0, contest_t))
 		if Input.is_action_just_pressed("pass"):
 			contest_hits += 1
 			if sfx_kick.stream != null:
@@ -1367,8 +1367,9 @@ func _contest_end(win: bool) -> void:
 			_contest_ai_moves_ball(c)
 	else:
 		if win:
-			# retuviste: sale jugada limpia a un apoyo
-			var support := _nearest(c.team, c.global_position, c, 14.0)
+			# retuviste: sale jugada limpia al apoyo MÁS lejos de un rival
+			# (si va al más cercano, lo placan al toque y es un bucle)
+			var support := _safest_support(c.team, c.global_position, c, 18.0)
 			if support != null:
 				ball.throw_to(support, c)
 				ui.flash_hint("¡RETUVISTE! Jugada limpia", 1.8)
@@ -1380,7 +1381,7 @@ func _contest_end(win: bool) -> void:
 
 
 func _contest_give_ball(c: RugbyPlayer, team: int, msg: String) -> void:
-	var n := _nearest(team, pending_spot, null, 16.0)
+	var n := _safest_support(team, pending_spot, null, 18.0)
 	if n != null:
 		ball.set_carrier(n)
 		ui.show_message(msg, 1.8)
@@ -1388,6 +1389,29 @@ func _contest_give_ball(c: RugbyPlayer, team: int, msg: String) -> void:
 			sfx_slide.play()
 	else:
 		_begin_breakdown(c)
+
+
+# el compañero en rango con MÁS distancia al rival más cercano:
+# quien la recibe no queda a tiro de placaje inmediato
+func _safest_support(team: int, pos: Vector3,
+		excl: RugbyPlayer, radius: float) -> RugbyPlayer:
+	var best: RugbyPlayer = null
+	var best_clear := -1.0
+	for p in players:
+		if p.team != team or p == excl or p.tackled > 0.0 or p.sin_bin_t > 0.0:
+			continue
+		if p.global_position.distance_to(pos) > radius:
+			continue
+		var clear := 999.0
+		for e in players:
+			if e.team == team or e.tackled > 0.0 or e.sin_bin_t > 0.0:
+				continue
+			clear = minf(clear, p.global_position.distance_to(
+				e.global_position))
+		if clear > best_clear:
+			best_clear = clear
+			best = p
+	return best
 
 
 # no forcejeaste o perdiste el robo: el rival mueve la pelota a un apoyo

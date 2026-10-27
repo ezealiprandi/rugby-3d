@@ -351,7 +351,7 @@ const CONT_BAR_W := 505.0
 func contest_show(steal: bool) -> void:
 	cont_instr.text = "¡ROBÁ LA PELOTA! · ESPACIO en la zona verde ×3" \
 		if steal else \
-		"¡RETENÉ LA PELOTA! · ¡MACHACÁ ESPACIO! ×5 en 5 segundos"
+		"¡RETENÉ LA PELOTA! · ¡MACHACÁ ESPACIO! ×10 antes de que se acabe"
 	cont_fill.visible = not steal
 	cont_zone_rect.visible = steal
 	cont_needle.visible = steal
@@ -371,14 +371,14 @@ func contest_update(cursor: float, zone: Vector2, hits: int) -> void:
 
 
 # modo machacar: la barra se llena con cada ESPACIO
-func contest_update_mash(hits: int, need: int, tfrac: float) -> void:
+func contest_update_mash(hits: int, need: int, tleft: float) -> void:
 	if cont_fill == null:
 		return
 	cont_fill.size.x = CONT_BAR_W * (float(hits) / need)
 	cont_fill.color = Color(0.25, 0.75, 0.4).lerp(Color(1.0, 0.85, 0.1), \
 		float(hits) / need)
 	cont_instr.text = "¡MACHACÁ ESPACIO! %d/%d · %.1fs" % \
-		[hits, need, tfrac * 5.0]
+		[hits, need, tleft]
 	for i in cont_pips.size():
 		cont_pips[i].visible = true
 		cont_pips[i].color = Color(0.95, 0.8, 0.1) if i < hits \
