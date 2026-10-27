@@ -156,17 +156,30 @@ func _whistle() -> void:
 
 
 func _crowd() -> void:
-	# ambiente 6s en loop: ruido suavizado con oleajes lentos
-	var n := int(RATE * 6.0)
+	# hinchada estilo broadcast: base de voces + palmas rítmicas +
+	# oleajes de aliento, loop 8s sin costura
+	var n := int(RATE * 8.0)
 	var data := PackedByteArray()
 	data.resize(n)
 	var acc := 0.0
+	var clap_env := 0.0
+	var next_clap := int(RATE * 0.4)
 	for i in n:
 		var t := float(i) / RATE
-		acc = acc * 0.94 + rng.randf_range(-1.0, 1.0) * 0.06
-		var swell := 0.6 + 0.3 * sin(TAU * 0.11 * t) + 0.1 * sin(TAU * 0.043 * t)
-		var s := acc * 8.0 * swell
-		data[i] = int(clampf(128.0 + s * 30.0, 0.0, 255.0))
+		# base: murmullo de voces filtrado
+		acc = acc * 0.93 + rng.randf_range(-1.0, 1.0) * 0.07
+		# palmas aisladas: transitorios secos cada ~0.45s con jitter
+		if i >= next_clap:
+			clap_env = 1.0
+			next_clap = i + int(RATE * rng.randf_range(0.3, 0.62))
+		var clap := rng.randf_range(-1.0, 1.0) * clap_env * 0.55
+		clap_env *= exp(-3.0 / RATE * 40.0) * 0.92
+		# oleaje de aliento tipo tribuna real
+		var swell := 0.72 + 0.22 * sin(TAU * 0.13 * t) \
+			+ 0.1 * sin(TAU * 0.037 * t + 1.7) \
+			+ 0.06 * sin(TAU * 0.51 * t)
+		var s := acc * 10.0 * swell + clap * (0.5 + 0.5 * swell)
+		data[i] = int(clampf(128.0 + s * 42.0, 0.0, 255.0))
 	_save_wav("res://assets/crowd.wav", data, true)
 
 

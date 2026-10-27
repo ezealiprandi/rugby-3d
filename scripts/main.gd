@@ -125,6 +125,19 @@ var opt_camera := 0                  # 0 broadcast · 1 cercana · 2 lejana  # e
 var offload_t := 0.0          # ventana para soltar la pelota al ser placado
 var offloader: RugbyPlayer = null  # el jugador apretó F para competir en el ruck
 
+# forcejeo post-placaje: barra de timing ×5 cada vez más rápida
+var contest_carrier: RugbyPlayer = null
+var contest_steal := false      # false = te placaron y retenés · true = placaste y robás
+var contest_prompt := false     # esperando F para arrancar el forcejeo de robo
+var contest_active := false     # minijuego corriendo
+var contest_t := 0.0            # tiempo límite
+var contest_hits := 0
+var contest_cursor := 0.0
+var contest_sway := 1.0
+var contest_speed := 1.0
+var contest_zone := Vector2(0.52, 0.78)
+var crowd_boost := 0.0        # sube el volumen de la tribuna un momento
+
 # ventaja del árbitro
 var adv_t := -1.0
 var adv_team := -1
@@ -168,7 +181,7 @@ func _ready() -> void:
 	menu.game = self
 	add_child(menu)
 	sfx_whistle = _mk_audio("res://assets/whistle.wav", -6.0)
-	sfx_crowd = _mk_audio("res://assets/crowd.wav", -16.0)
+	sfx_crowd = _mk_audio("res://assets/crowd.wav", -11.5)
 	sfx_cheer = _mk_audio("res://assets/cheer.wav", -4.0)
 	sfx_rain = _mk_audio("res://assets/rain.wav", -18.0)
 	sfx_steps = _mk_audio("res://assets/steps.wav", -14.0)
@@ -408,8 +421,13 @@ func start_match(home: int, away: int, m := "friendly") -> void:
 		field.set_daytime(tod)
 		field.set_weather(weather == "rain")
 	first_kicker = rng.randi() % 2   # moneda al aire
-	if sfx_crowd.stream != null and not sfx_crowd.playing:
-		sfx_crowd.play()
+	if sfx_crowd.stream != null:
+		# cada club suena un poco distinto: su hinchada tiene su tono
+		sfx_crowd.pitch_scale = 0.94 + (home % 6) * 0.035
+		sfx_crowd.volume_db = -11.5
+		crowd_boost = 0.0
+		if not sfx_crowd.playing:
+			sfx_crowd.play()
 	if mode == "tournament":
 		if tour_fixture.is_empty():
 			# fixture del torneo: del rival más débil al más fuerte
@@ -569,6 +587,14 @@ func _process(delta: float) -> void:
 		else:
 			start_match(home_idx, away_idx, mode)
 		return
+	# si el juego cortó a otra fase con un forcejeo abierto, cerrarlo
+	if contest_carrier != null and phase != Phase.PLAY:
+		_contest_clear()
+	# la tribuna vuelve a su nivel luego de una explosión
+	if crowd_boost > 0.0:
+		crowd_boost = maxf(0.0, crowd_boost - delta * 3.0)
+		if sfx_crowd.stream != null:
+			sfx_crowd.volume_db = -11.5 + crowd_boost
 
 	match phase:
 		Phase.MENU:
@@ -598,7 +624,9 @@ func _process(delta: float) -> void:
 				else ball.last_touch_team
 			if poss_team >= 0:
 				poss_t[poss_team] += delta
-			if offloader != null:
+			if contest_carrier != null:
+				_contest_update(delta)
+			elif offloader != null:
 				offload_t -= delta
 				if offload_t <= 0.0:
 					_begin_breakdown(offloader)
@@ -630,6 +658,12 @@ func _process(delta: float) -> void:
 				if replay_wait <= 0.0:
 					ui.replay_intro_hide()
 					ui.replay_overlay(true)
+					# la tribuna reacciona al ver la repetición
+					crowd_boost = 4.0
+					if sfx_cheer.stream != null:
+						sfx_cheer.volume_db = -9.0
+						sfx_cheer.pitch_scale = 0.85
+						sfx_cheer.play()
 			else:
 				if Input.is_action_just_pressed("pass"):
 					replay_i = replay_buf.size()   # Espacio: saltea el replay
@@ -948,6 +982,8 @@ func _on_try(team: int) -> void:
 		p.tackled = 0.0
 	_whistle()
 	if sfx_cheer.stream != null:
+		sfx_cheer.volume_db = -4.0
+		sfx_cheer.pitch_scale = 1.0
 		sfx_cheer.play()
 	if field != null:
 		field.crowd_surge()
@@ -1211,9 +1247,141 @@ func on_tackle(tackler: RugbyPlayer, carrier: RugbyPlayer) -> void:
 	ui.show_message("¡PLACAJE!", 1.0)
 	if rng.randf() < 0.3:
 		ui.commentary("Entrada dura pero legal")
+	# forcejeo con el jugador controlado involucrado
+	if contest_carrier == null:
+		if carrier == controlled:
+			_contest_start(false, carrier)
+			return
+		if tackler == controlled:
+			_contest_start(true, carrier)
+			return
 	# la IA intenta el offload si tiene apoyo cerca
 	if carrier != controlled and rng.randf() < 0.45:
 		on_offload(carrier)
+
+
+# ─── Forcejeo post-placaje ─────────────────────────────────────────────────
+func _contest_start(steal: bool, c: RugbyPlayer) -> void:
+	contest_carrier = c
+	contest_steal = steal
+	contest_hits = 0
+	contest_cursor = 0.0
+	contest_sway = 1.0
+	contest_speed = 1.0
+	contest_zone = Vector2(0.52, 0.78)
+	offloader = null              # pausa el offload/breakdown: decide el forcejeo
+	offload_t = 0.0
+	c.tackled = maxf(c.tackled, 4.5)
+	if steal:
+		# vos placaste: 3s para apretar F y forcejear, si no el rival la mueve
+		contest_prompt = true
+		contest_active = false
+		contest_t = 3.0
+		ui.flash_hint("¡F: FORCEJEAR para robar!", 2.8)
+	else:
+		# te placaron: minijuego directo para retener la pelota
+		contest_prompt = false
+		contest_active = true
+		contest_t = 4.0
+		ui.contest_show(false)
+		ui.flash_hint("¡ESPACIO en la zona verde ×5 para retener!", 3.6)
+
+
+func _contest_update(delta: float) -> void:
+	contest_t -= delta
+	if contest_prompt:
+		if Input.is_action_just_pressed("tackle"):
+			contest_prompt = false
+			contest_active = true
+			contest_t = 4.0
+			ui.contest_show(true)
+		elif contest_t <= 0.0:
+			var c := contest_carrier
+			_contest_clear()
+			if c != null:
+				_contest_ai_moves_ball(c)
+		return
+	if not contest_active:
+		return
+	contest_cursor += contest_sway * delta * contest_speed * 0.85
+	if contest_cursor >= 1.0:
+		contest_cursor = 1.0
+		contest_sway = -1.0
+	elif contest_cursor <= 0.0:
+		contest_cursor = 0.0
+		contest_sway = 1.0
+	ui.contest_update(contest_cursor, contest_zone, contest_hits)
+	if Input.is_action_just_pressed("pass"):
+		if contest_cursor >= contest_zone.x and contest_cursor <= contest_zone.y:
+			contest_hits += 1
+			contest_speed *= 1.38        # cada acierto, la barra va más rápido
+			var w := 0.26 - contest_hits * 0.02   # y la zona se achica y se mueve
+			var zx := rng.randf_range(0.15, 0.85 - w)
+			contest_zone = Vector2(zx, zx + w)
+			if sfx_kick.stream != null:
+				sfx_kick.play()
+			if contest_hits >= 5:
+				_contest_end(true)
+		else:
+			_contest_end(false)
+	elif contest_t <= 0.0:
+		_contest_end(false)
+
+
+func _contest_end(win: bool) -> void:
+	var c := contest_carrier
+	var steal := contest_steal
+	_contest_clear()
+	if c == null:
+		return
+	c.tackled = minf(c.tackled, 1.4)
+	if steal:
+		if win:
+			_contest_give_ball(c, 0, "¡ROBO EN EL CONTACTO!")
+		else:
+			_contest_ai_moves_ball(c)
+	else:
+		if win:
+			# retuviste: sale jugada limpia a un apoyo
+			var support := _nearest(c.team, c.global_position, c, 14.0)
+			if support != null:
+				ball.throw_to(support, c)
+				ui.flash_hint("¡RETUVISTE! Jugada limpia", 1.8)
+				crowd_boost = 3.5        # la tribuna responde
+			else:
+				_begin_breakdown(c)
+		else:
+			_contest_give_ball(c, 1, "¡TE LA ROBARON!")
+
+
+func _contest_give_ball(c: RugbyPlayer, team: int, msg: String) -> void:
+	var n := _nearest(team, pending_spot, null, 16.0)
+	if n != null:
+		ball.set_carrier(n)
+		ui.show_message(msg, 1.8)
+		if sfx_slide.stream != null:
+			sfx_slide.play()
+	else:
+		_begin_breakdown(c)
+
+
+# no forcejeaste o perdiste el robo: el rival mueve la pelota a un apoyo
+func _contest_ai_moves_ball(c: RugbyPlayer) -> void:
+	offloader = c
+	offload_t = 0.4
+	on_offload(c)
+	if offloader != null:
+		pass   # sin apoyo: el timer del offload dispara el ruck normal
+
+
+func _contest_clear() -> void:
+	contest_carrier = null
+	contest_steal = false
+	contest_prompt = false
+	contest_active = false
+	contest_t = 0.0
+	contest_hits = 0
+	ui.contest_hide()
 
 
 # se acabó la ventana: la pelota va al piso y se forma el ruck

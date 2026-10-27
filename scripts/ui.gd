@@ -32,6 +32,11 @@ var conv_instr: Label
 var aim_needle: ColorRect
 var power_fill: ColorRect
 var height_fill: ColorRect
+var cont_panel: Panel
+var cont_instr: Label
+var cont_needle: ColorRect
+var cont_zone_rect: ColorRect
+var cont_pips: Array[ColorRect] = []
 
 # panel de stats post-partido
 var stats_panel: CenterContainer
@@ -131,6 +136,7 @@ func _ready() -> void:
 	comm_lbl.modulate.a = 0.0
 
 	_build_conversion_ui()
+	_build_contest_ui()
 	_build_stats_panel()
 	_build_pause_menu()
 	_build_vs_panel()
@@ -272,6 +278,89 @@ func _build_conversion_ui() -> void:
 	vb.add_child(hgt_bar)
 
 	conv_panel.visible = false
+
+
+# forcejeo post-placaje: barra de timing — ESPACIO en la zona verde ×5
+func _build_contest_ui() -> void:
+	cont_panel = Panel.new()
+	cont_panel.custom_minimum_size = Vector2(460, 118)
+	cont_panel.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
+	cont_panel.position = Vector2(-230, -170)
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0, 0, 0, 0.7)
+	sb.corner_radius_top_left = 10
+	sb.corner_radius_top_right = 10
+	sb.corner_radius_bottom_left = 10
+	sb.corner_radius_bottom_right = 10
+	cont_panel.add_theme_stylebox_override("panel", sb)
+	add_child(cont_panel)
+
+	var vb := VBoxContainer.new()
+	vb.set_anchors_preset(Control.PRESET_FULL_RECT)
+	vb.add_theme_constant_override("separation", 8)
+	var pad := MarginContainer.new()
+	pad.add_theme_constant_override("margin_left", 20)
+	pad.add_theme_constant_override("margin_right", 20)
+	pad.add_theme_constant_override("margin_top", 12)
+	pad.add_theme_constant_override("margin_bottom", 12)
+	pad.add_child(vb)
+	cont_panel.add_child(pad)
+
+	cont_instr = Label.new()
+	cont_instr.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	cont_instr.add_theme_font_size_override("font_size", 17)
+	vb.add_child(cont_instr)
+
+	var bar := Panel.new()
+	bar.custom_minimum_size = Vector2(0, 20)
+	var bar_sb := StyleBoxFlat.new()
+	bar_sb.bg_color = Color(0.15, 0.15, 0.18)
+	bar.add_theme_stylebox_override("panel", bar_sb)
+	cont_zone_rect = ColorRect.new()
+	cont_zone_rect.color = Color(0.2, 0.8, 0.3, 0.5)
+	cont_zone_rect.size = Vector2(60, 20)
+	bar.add_child(cont_zone_rect)
+	cont_needle = ColorRect.new()
+	cont_needle.color = Color(1.0, 0.85, 0.1)
+	cont_needle.size = Vector2(8, 20)
+	bar.add_child(cont_needle)
+	vb.add_child(bar)
+
+	var pips := HBoxContainer.new()
+	pips.alignment = BoxContainer.ALIGNMENT_CENTER
+	pips.add_theme_constant_override("separation", 10)
+	for i in 5:
+		var pip := ColorRect.new()
+		pip.custom_minimum_size = Vector2(16, 10)
+		pip.color = Color(1, 1, 1, 0.18)
+		pips.add_child(pip)
+		cont_pips.append(pip)
+	vb.add_child(pips)
+
+	cont_panel.visible = false
+
+
+func contest_show(steal: bool) -> void:
+	cont_instr.text = "¡ROBÁ LA PELOTA! · ESPACIO en la zona verde ×5" \
+		if steal else \
+		"¡RETENÉ LA PELOTA! · ESPACIO en la zona verde ×5"
+	cont_panel.visible = true
+
+
+func contest_update(cursor: float, zone: Vector2, hits: int) -> void:
+	if cont_needle == null:
+		return
+	cont_needle.position.x = 5.0 + 400.0 * cursor
+	cont_zone_rect.position.x = 5.0 + 400.0 * zone.x
+	cont_zone_rect.size.x = 400.0 * (zone.y - zone.x)
+	for i in cont_pips.size():
+		cont_pips[i].color = Color(0.95, 0.8, 0.1) if i < hits \
+			else Color(1, 1, 1, 0.18)
+
+
+func contest_hide() -> void:
+	if cont_panel != null:
+		cont_panel.visible = false
 
 
 func _process(delta: float) -> void:

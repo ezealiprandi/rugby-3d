@@ -308,7 +308,10 @@ func _process(_delta: float) -> void:
 
 
 func carry_point() -> Vector3:
-	# pegada al pecho, dentro del abrazo de los brazos
+	# en las manos: anclada al torso — lo sigue al correr, agacharse,
+	# caer placado o lanzarse en palomita (nunca queda a los pies)
+	if visual != null:
+		return visual.global_transform * Vector3(0.0, 1.08, 0.44)
 	return global_position + Vector3(0, 1.0, 0) + facing * 0.32
 
 
