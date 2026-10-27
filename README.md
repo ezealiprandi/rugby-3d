@@ -118,7 +118,10 @@ Y con `-- --auto` al ejecutar el juego se salta el menú.
 
 ## Contribuir
 
-El proyecto es **código abierto** (MIT): forks, PRs e ideas son bienvenidos.
+El código es **visible públicamente** (source-available): forks, PRs e
+ideas son bienvenidos con fines de contribución. Distribuir o
+comercializar el juego requiere autorización previa del autor
+(ver [LICENSE](LICENSE)).
 
 - Todo el juego se genera por código GDScript — no hay assets externos
   salvo los WAV procedurales de `assets/` (se regeneran con `tests/gen_audio.gd`).
@@ -128,4 +131,8 @@ El proyecto es **código abierto** (MIT): forks, PRs e ideas son bienvenidos.
 
 ## Licencia
 
-MIT — ver [LICENSE](LICENSE).
+**Propietaria — todos los derechos reservados.** Podés ver, clonar y
+modificar el código para uso personal o para contribuir al proyecto, pero
+**distribuir, publicar, vender o usar comercialmente el juego requiere
+autorización previa y por escrito del autor**
+([@ezealiprandi](https://github.com/ezealiprandi)). Ver [LICENSE](LICENSE).

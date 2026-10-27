@@ -49,7 +49,7 @@ const HISTORY := [
 		"Identidad fija por apellido real (piel, pelo, barba, botines)",
 		"Pelota ovalada real de rugby con costura y cordones",
 		"Menú extendido con grilla de los 12 clubes URT",
-		"Repositorio público open source con licencia MIT",
+		"Repositorio público — código visible (licencia propietaria desde v0.6)",
 		"Botón Salir + homenaje 'al rugby tucumano'",
 	]],
 	["v0.2", "Gameplay jugable (G1–G4)", [

@@ -1,21 +1,50 @@
-MIT License
+Rugby Tucumano — Licencia propietaria (Todos los derechos reservados)
 
-Copyright (c) 2026 Ezequiel Aliprandi
+Copyright (c) 2026 Ezequiel Aliprandi. Todos los derechos reservados.
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+CONDICIONES DE USO
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+1. USO PERMITIDO
+   Se permite ver, descargar, clonar y modificar este código fuente
+   únicamente con fines personales, educativos o de evaluación, siempre
+   que no se distribuya el resultado.
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+2. DISTRIBUCIÓN Y USO COMERCIAL — REQUIEREN AUTORIZACIÓN
+   Queda terminantemente prohibido distribuir, publicar, sublicenciar,
+   vender, alquilar, monetizar o explotar comercialmente este software —
+   total o parcialmente, con o sin modificaciones — SIN LA AUTORIZACIÓN
+   PREVIA Y POR ESCRITO del titular de los derechos
+   (Ezequiel Aliprandi — https://github.com/ezealiprandi).
+
+   Esto incluye, entre otros: publicar el juego en tiendas o sitios web,
+   compilarlo y repartirlo, venderlo, usarlo en eventos con fines
+   comerciales, o incorporarlo a productos o servicios de terceros.
+
+3. CONTRIBUCIONES
+   Los forks y pull requests con fines de contribuir a este repositorio
+   son bienvenidos. Al contribuir, el colaborador acepta que su aporte se
+   incorpore al proyecto bajo estas mismas condiciones y que el titular
+   decida su distribución.
+
+4. MARCAS Y CONTENIDO
+   Los nombres, escudos y colores de los clubes de la Unión de Rugby de
+   Tucumán (URT) pertenecen a sus respectivos clubes e instituciones. Su
+   uso en este proyecto es con fines representativos; cualquier
+   explotación comercial debe contar también con el aval de la URT y los
+   clubes involucrados.
+
+5. SIN GARANTÍA
+   EL SOFTWARE SE ENTREGA "TAL CUAL", SIN GARANTÍA DE NINGÚN TIPO, EXPRESA
+   O IMPLÍCITA. EN NINGÚN CASO EL TITULAR SERÁ RESPONSABLE POR DAÑOS
+   DERIVADOS DEL USO DEL SOFTWARE.
+
+--------------------------------------------------------------------------------
+English summary (informative only — the Spanish text above prevails):
+
+Copyright (c) 2026 Ezequiel Aliprandi. All rights reserved.
+
+You may view, clone and modify this source code for personal, educational
+or evaluation purposes only. Any distribution, publication, sublicensing,
+sale or commercial exploitation of this software — in whole or in part —
+REQUIRES PRIOR WRITTEN AUTHORIZATION from the copyright holder. Club names
+and identities belong to their respective URT institutions.
