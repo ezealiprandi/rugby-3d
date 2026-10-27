@@ -4,7 +4,7 @@ class_name RugbyMenu
 # Menú principal estilo Rugby 25 / EA Sports: panel de navegación lateral
 # izquierdo con ítems grandes, zona "hero" a la derecha (muro de camisetas /
 # vista previa del club) y barra inferior de hints de teclado.
-enum Step { HIDDEN, TITLE, HOME, AWAY, CONTROLS, OPTIONS, TABLE }
+enum Step { HIDDEN, TITLE, HOME, AWAY, CONTROLS, OPTIONS, TABLE, CHANGES }
 
 var game: RugbyGame
 var step := Step.HIDDEN
@@ -27,6 +27,7 @@ var nav_btns: Array[Button] = []
 var content_box: VBoxContainer
 var controls_lbl: RichTextLabel
 var table_lbl: RichTextLabel
+var changes_lbl: RichTextLabel
 var opt_box: VBoxContainer
 var opt_btns: Array[Button] = []
 var opt_hdrs := {}          # Label -> clave de idioma
@@ -63,6 +64,10 @@ const EN := {
 	"PARTIDO": "MATCH", "GRÁFICOS": "GRAPHICS", "AUDIO": "AUDIO",
 	"ACCESIBILIDAD": "ACCESSIBILITY", "IDIOMA": "LANGUAGE",
 	"TABLA URT": "URT TABLE",
+	"NOVEDADES": "WHAT'S NEW",
+	"Selección de jugador": "Player selection",
+	"Automática": "Automatic", "Mixta": "Mixed", "Manual": "Manual",
+	"Historial de cambios versión por versión": "Version-by-version changelog",
 	"Todavía no jugaste el torneo.\nElegí TORNEO URT para empezar.":
 		"You haven't played the tournament yet.\nChoose URT TOURNAMENT to start.",
 	"Próxima fecha": "Next fixture",
@@ -301,6 +306,7 @@ func _ready() -> void:
 		["TABLA URT", _on_table_pressed],
 		["OPCIONES", _on_options_pressed],
 		["CONTROLES", _on_controls_pressed],
+		["NOVEDADES", _on_changes_pressed],
 		["SALIR", func(): get_tree().quit()],
 	]
 	for i in nav_items.size():
@@ -426,6 +432,17 @@ func _ready() -> void:
 	controls_lbl.visible = false
 	content_box.add_child(controls_lbl)
 
+	# historial de versiones (novedades)
+	changes_lbl = RichTextLabel.new()
+	changes_lbl.bbcode_enabled = true
+	changes_lbl.fit_content = true
+	changes_lbl.scroll_active = false
+	changes_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	changes_lbl.add_theme_font_size_override("normal_font_size", 17)
+	changes_lbl.add_theme_color_override("default_color", Color(0.9, 0.93, 0.88))
+	changes_lbl.visible = false
+	content_box.add_child(changes_lbl)
+
 	result_lbl = _lbl(19)
 	result_lbl.add_theme_color_override("font_color", Color(0.5, 0.95, 0.5))
 	result_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -434,7 +451,7 @@ func _ready() -> void:
 
 	version_lbl = _lbl(14)
 	version_lbl.add_theme_color_override("font_color", Color(1, 1, 1, 0.45))
-	version_lbl.text = "v5.0 · Rugby Tucumano"
+	version_lbl.text = RugbyChangelog.VERSION + " · Rugby Tucumano"
 	svb.add_child(version_lbl)
 
 	# ===== zona derecha: hero (muro de camisetas) / vista previa =====
@@ -555,6 +572,7 @@ func _set_nav_desc(i: int) -> void:
 		"Posiciones del torneo en curso",
 		"Juego, gráficos, audio, controles y más",
 		"Todas las teclas y reglas extra",
+		"Historial de cambios versión por versión",
 		"Cerrar el juego",
 	]
 	nav_desc.text = T(keys[i])
@@ -570,6 +588,7 @@ func _update_view() -> void:
 	opt_box.visible = step == Step.OPTIONS
 	controls_lbl.visible = step == Step.CONTROLS
 	table_lbl.visible = step == Step.TABLE
+	changes_lbl.visible = step == Step.CHANGES
 	hero_box.visible = is_title
 	preview_box.visible = step == Step.HOME or step == Step.AWAY
 	result_lbl.visible = is_title and result_lbl.text != ""
@@ -586,7 +605,7 @@ func _update_view() -> void:
 			for i in nav_btns.size():
 				nav_btns[i].text = T([
 					"AMISTOSO", "TORNEO URT", "PRÁCTICA LIBRE",
-					"TABLA URT", "OPCIONES", "CONTROLES", "SALIR"][i])
+					"TABLA URT", "OPCIONES", "CONTROLES", "NOVEDADES", "SALIR"][i])
 			nav_btns[nav_idx].grab_focus()
 			_set_nav_desc(nav_idx)
 		Step.HOME:
@@ -612,6 +631,10 @@ func _update_view() -> void:
 			prompt_lbl.text = T("TABLA URT")
 			hint_lbl.text = T("Esc volver")
 			_fill_table()
+		Step.CHANGES:
+			prompt_lbl.text = T("NOVEDADES") + " · " + RugbyChangelog.VERSION
+			hint_lbl.text = T("Esc volver")
+			_fill_changes()
 		Step.OPTIONS:
 			prompt_lbl.text = T("OPCIONES")
 			hint_lbl.text = T("↑↓ elegir opción · Enter cambiar · Esc guardar")
@@ -754,6 +777,23 @@ func _on_options_pressed() -> void:
 func _on_table_pressed() -> void:
 	step = Step.TABLE
 	_update_view()
+
+
+func _on_changes_pressed() -> void:
+	step = Step.CHANGES
+	_update_view()
+
+
+func _fill_changes() -> void:
+	var t := "[color=#f5c542][b]%s · Rugby Tucumano[/b][/color]\n" % \
+		RugbyChangelog.VERSION
+	for entry in RugbyChangelog.HISTORY:
+		var ver: String = entry[0]
+		var title: String = entry[1]
+		t += "\n[color=#f5c542][b]%s[/b][/color] — %s\n" % [ver, T(title)]
+		for c in entry[2]:
+			t += "  • %s\n" % T(c)
+	changes_lbl.text = t
 
 
 func _fill_table() -> void:
