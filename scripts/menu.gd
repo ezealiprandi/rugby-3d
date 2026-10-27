@@ -744,7 +744,7 @@ func _update_preview() -> void:
 
 func _back() -> void:
 	match step:
-		Step.HOME, Step.CONTROLS, Step.OPTIONS, Step.TABLE:
+		Step.HOME, Step.CONTROLS, Step.OPTIONS, Step.TABLE, Step.CHANGES:
 			step = Step.TITLE
 		Step.AWAY:
 			step = Step.HOME
