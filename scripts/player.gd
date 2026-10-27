@@ -308,7 +308,8 @@ func _process(_delta: float) -> void:
 
 
 func carry_point() -> Vector3:
-	return global_position + Vector3(0, 1.1, 0) + facing * 0.42
+	# pegada al pecho, dentro del abrazo de los brazos
+	return global_position + Vector3(0, 1.0, 0) + facing * 0.32
 
 
 func _physics_process(delta: float) -> void:
@@ -480,7 +481,7 @@ func _desired_velocity() -> Vector3:
 			if Input.is_action_just_pressed("fend") and cool_fend <= 0.0:
 				_do_fend()
 			if Input.is_action_just_pressed("tackle") and dive_cd <= 0.0:
-				# palomita al in-goal: lanzarse para alcanzar la línea de try
+				# palomita al in-goal: dirigida automáticamente a la línea de try
 				var adir := float(game.attack_dir[team])
 				var dist_try := RugbyGame.TRY_Z - global_position.z * adir
 				if dist_try > 0.0 and dist_try < 6.0:
@@ -982,12 +983,13 @@ func _update_visual(delta: float, h_speed: float) -> void:
 		leg_r.rotation.x = lerpf(leg_r.rotation.x, -0.3, delta * 10.0)
 		return
 	if dive_t > 0.0:
-		visual.rotation.x = lerpf(visual.rotation.x, -1.5, delta * 14.0)
-		visual.position.y = lerpf(visual.position.y, 0.18, delta * 14.0)
-		leg_l.rotation.x = lerpf(leg_l.rotation.x, 0.9, delta * 10.0)
+		# boca abajo: el cuerpo se tira de panza, brazos estirados al frente
+		visual.rotation.x = lerpf(visual.rotation.x, 1.5, delta * 14.0)
+		visual.position.y = lerpf(visual.position.y, 0.35, delta * 14.0)
+		leg_l.rotation.x = lerpf(leg_l.rotation.x, 0.7, delta * 10.0)
 		leg_r.rotation.x = lerpf(leg_r.rotation.x, 0.4, delta * 10.0)
-		arm_l.rotation.x = lerpf(arm_l.rotation.x, -2.2, delta * 12.0)
-		arm_r.rotation.x = lerpf(arm_r.rotation.x, -2.2, delta * 12.0)
+		arm_l.rotation.x = lerpf(arm_l.rotation.x, -2.6, delta * 12.0)
+		arm_r.rotation.x = lerpf(arm_r.rotation.x, -2.6, delta * 12.0)
 		return
 	if tackled > 0.0:
 		visual.rotation.x = lerpf(visual.rotation.x, -1.45, delta * 8.0)

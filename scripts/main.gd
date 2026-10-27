@@ -70,6 +70,7 @@ var conv_done_flag := false
 var conv_kicker: RugbyPlayer = null
 var conv_aim_marker: MeshInstance3D   # retícula 3D del objetivo en la H
 var conv_trail: MeshInstance3D        # línea de trayectoria ball→objetivo
+var conv_height := 0.6                # elevación de la patada (W/S en aim)
 const CONV_SWEET_LO := 0.60           # zona verde de la barra de potencia
 const CONV_SWEET_HI := 0.80
 var confetti: GPUParticles3D = null
@@ -1047,7 +1048,7 @@ func _setup_kick_at_goal(pts: int, team: int, spot: Vector3) -> void:
 		conv_state = ConvState.AIM
 		conv_aim = 0.0
 		ui.conv_show()
-		ui.conv_set_instr("A/D apuntar · ESPACIO cargar potencia")
+		ui.conv_set_instr("A/D dirección · W/S altura · ESPACIO potencia")
 	else:
 		conv_state = ConvState.WAIT_AI
 		conv_t = 1.6
@@ -1061,15 +1062,21 @@ func _update_conversion(delta: float) -> void:
 				conv_aim -= delta * 0.9
 			if Input.is_action_pressed("move_right"):
 				conv_aim += delta * 0.9
+			# W/S ajusta la elevación de la patada
+			if Input.is_action_pressed("move_up"):
+				conv_height = minf(conv_height + delta * 0.8, 1.0)
+			if Input.is_action_pressed("move_down"):
+				conv_height = maxf(conv_height - delta * 0.8, 0.0)
 			conv_aim = clampf(conv_aim, -1.0, 1.0)
 			ui.conv_set_aim(conv_aim)
+			ui.conv_set_height(conv_height)
 			# retícula 3D sobre la H + línea de trayectoria desde la pelota
 			var goal_z := conv_dir * TRY_Z
 			var aim_x := conv_aim * 4.2
 			conv_aim_marker.global_position = Vector3(aim_x, 3.4, goal_z)
 			var bp := ball.global_position + Vector3(0, 0.35, 0)
 			var mid := (bp + conv_aim_marker.global_position) * 0.5
-			mid.y += 2.0                                # arco de la trayectoria
+			mid.y += 1.2 + conv_height * 4.0            # arco según la altura
 			conv_trail.global_position = mid
 			conv_trail.look_at(conv_aim_marker.global_position, Vector3.UP)
 			conv_trail.scale = Vector3(1, 1,
@@ -1164,10 +1171,11 @@ func _conv_execute() -> void:
 	var target := Vector3(aim_x, 4.6, conv_dir * TRY_Z)
 	var dir3 := (target - ball.global_position)
 	var flat := Vector3(dir3.x, 0.0, dir3.z)
-	var dist := flat.length()
 	var speed := 13.0 + conv_power * 15.0
 	flat = flat.normalized() * speed
-	ball.linear_velocity = Vector3(flat.x, 5.8 + conv_power * 6.0, flat.z)
+	# elevación elegida con W/S: baja/rasante a globo alto
+	var vy := 4.2 + conv_height * 7.5 + conv_power * 3.0
+	ball.linear_velocity = Vector3(flat.x, vy, flat.z)
 	_kick_sfx()
 	ball.angular_velocity = Vector3(-conv_dir, 0, 0) * 12.0
 	ball.release_guard = 0.4

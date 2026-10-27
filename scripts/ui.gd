@@ -31,6 +31,7 @@ var conv_panel: Panel
 var conv_instr: Label
 var aim_needle: ColorRect
 var power_fill: ColorRect
+var height_fill: ColorRect
 
 # panel de stats post-partido
 var stats_panel: CenterContainer
@@ -253,6 +254,22 @@ func _build_conversion_ui() -> void:
 	power_fill.size = Vector2(0, 20)
 	pow_bar.add_child(power_fill)
 	vb.add_child(pow_bar)
+
+	var hgt_lbl := Label.new()
+	hgt_lbl.text = "ALTURA (W/S)"
+	hgt_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	hgt_lbl.add_theme_font_size_override("font_size", 13)
+	vb.add_child(hgt_lbl)
+	var hgt_bar := Panel.new()
+	hgt_bar.custom_minimum_size = Vector2(0, 14)
+	var hgt_sb := StyleBoxFlat.new()
+	hgt_sb.bg_color = Color(0.15, 0.15, 0.18)
+	hgt_bar.add_theme_stylebox_override("panel", hgt_sb)
+	height_fill = ColorRect.new()
+	height_fill.color = Color(0.35, 0.6, 0.95)
+	height_fill.size = Vector2(0, 14)
+	hgt_bar.add_child(height_fill)
+	vb.add_child(hgt_bar)
 
 	conv_panel.visible = false
 
@@ -546,6 +563,10 @@ func conv_hide() -> void:
 func conv_set_aim(v: float) -> void:
 	# v en [-1, 1]; barra de 420px internos
 	aim_needle.position.x = (v + 1.0) * 0.5 * 400.0 + 5.0
+
+
+func conv_set_height(v: float) -> void:
+	height_fill.size.x = clampf(v, 0.0, 1.0) * 410.0
 
 
 func conv_set_power(v: float) -> void:
