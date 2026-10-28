@@ -71,6 +71,7 @@ const EN := {
 	"Todavía no jugaste el torneo.\nElegí TORNEO URT para empezar.":
 		"You haven't played the tournament yet.\nChoose URT TOURNAMENT to start.",
 	"Próxima fecha": "Next fixture",
+	"Tu torneo": "Your tournament",
 	"FECHA": "ROUND",
 	"TABLA URT —": "URT TABLE —",
 	"RESULTADOS": "RESULTS", "GOLEADORES": "TRY SCORERS", "Fecha": "Round", "Torneo terminado": "Tournament over",
@@ -808,6 +809,10 @@ func _fill_table() -> void:
 		t += "\n[color=#f5c542]" + T("Próxima fecha") + ": " + 			RugbyTeams.CLUBS[game.home_idx]["name"] + " vs " + 			RugbyTeams.CLUBS[game.tour_fixture[game.tour_pos]]["name"] + 			"[/color]"
 	else:
 		t += "\n[color=#f5c542]" + T("Torneo terminado") + "[/color]"
+	var st: Dictionary = game.tour_stats
+	if st.tries + st.conv + st.pens + st.tackles > 0:
+		t += "\n[color=#7fd4ff]" + T("Tu torneo") + ": %d tries · %d conv · %d penales · %d placajes" % [
+			st.tries, st.conv, st.pens, st.tackles] + "[/color]"
 	if not game.tour_scorers.is_empty():
 		t += "\n— " + T("GOLEADORES") + " —\n"
 		var arr := []

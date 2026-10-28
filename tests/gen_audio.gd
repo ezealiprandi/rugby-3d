@@ -21,6 +21,7 @@ func _init() -> void:
 	_tackle()
 	_slide()
 	_kick()
+	_scrum()
 	print("audio generado")
 	quit()
 
@@ -98,6 +99,20 @@ func _kick() -> void:
 		var snap := rng.randf_range(-1.0, 1.0) * exp(-t * 60.0) * 0.8
 		data[i] = int(clampf(128.0 + (thud + snap) * 85.0, 0.0, 255.0))
 	_save_wav("res://assets/kick.wav", data)
+
+
+func _scrum() -> void:
+	# choque de packs: golpe muy grave y sostenido + ruido de forcejeo
+	var n := int(RATE * 0.55)
+	var data := PackedByteArray()
+	data.resize(n)
+	for i in n:
+		var t := float(i) / RATE
+		var env := exp(-t * 9.0)
+		var thud := sin(TAU * (72.0 - t * 60.0) * t) * env
+		var rumble := rng.randf_range(-1.0, 1.0) * exp(-t * 16.0) * 0.7
+		data[i] = int(clampf(128.0 + (thud + rumble) * 95.0, 0.0, 255.0))
+	_save_wav("res://assets/scrum.wav", data)
 
 
 func _tick() -> void:

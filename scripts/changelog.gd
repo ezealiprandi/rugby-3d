@@ -2,12 +2,17 @@ class_name RugbyChangelog
 extends RefCounted
 
 # Versión actual del juego — se muestra en el menú y en esta pantalla.
-const VERSION := "v0.8"
+const VERSION := "v0.9"
 
 # Historial de cambios, de la versión más nueva a la más vieja.
 # Para publicar una versión nueva: subir VERSION y agregar una entrada
 # [versión, título, [lista de cambios]] al principio de este array.
 const HISTORY := [
+	["v0.9", "Auditoría Rugby 25 — sección 8 (modos y persistencia)", [
+		"Torneo guardado automático: se reanuda donde lo dejaste al reabrir el juego",
+		"Stats acumuladas de tu torneo en la tabla: tries, conversiones, penales y placajes",
+		"Sonido de choque de packs al formarse el scrum y el maul",
+	]],
 	["v0.8", "Auditoría Rugby 25 — secciones 2 a 7", [
 		"Chip kick con N: patadita corta por encima del defensor a re-agrupar",
 		"Offside de perseguidores: el compañero por delante del pateador que toca la pelota → penal",

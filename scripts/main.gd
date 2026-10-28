@@ -32,6 +32,7 @@ var tour_pos := 0
 var tour_wins := 0
 var tour_losses := 0
 var tour_table: Array = []          # tabla de posiciones de los 12 clubes
+var tour_stats := {"tries": 0, "conv": 0, "pens": 0, "tackles": 0}  # tus acumuladas
 
 var home_idx := 0                  # clubes elegidos en el menú
 var away_idx := 1
@@ -144,6 +145,7 @@ var contest_zone := Vector2(0.5, 0.82)
 var crowd_boost := 0.0        # sube el volumen de la tribuna un momento
 var conv_clock := 0.0         # shot clock de la patada (60s estilo Rugby 25)
 var last_play := false        # tiempo cumplido: el tiempo termina al morir la jugada
+var last_play_t := 0.0        # tope de seguridad: corta si la jugada no muere
 var whistle_pend := 0         # silbatazos encadenados (triple al final de tiempo)
 var whistle_pend_t := 0.0
 
@@ -169,6 +171,7 @@ var sfx_steps: AudioStreamPlayer
 var sfx_tackle: AudioStreamPlayer
 var sfx_slide: AudioStreamPlayer
 var sfx_kick: AudioStreamPlayer
+var sfx_scrum: AudioStreamPlayer
 
 
 func _ready() -> void:
@@ -197,6 +200,7 @@ func _ready() -> void:
 	sfx_tackle = _mk_audio("res://assets/tackle.wav", -8.0)
 	sfx_slide = _mk_audio("res://assets/slide.wav", -9.0)
 	sfx_kick = _mk_audio("res://assets/kick.wav", -6.0)
+	sfx_scrum = _mk_audio("res://assets/scrum.wav", -8.0)
 	ui.set_info("WASD mover · Shift sprint · Espacio pasar · K patada · Esc pausa")
 	ui.visible = false
 	_load_options()
@@ -439,6 +443,9 @@ func start_match(home: int, away: int, m := "friendly") -> void:
 		if not sfx_crowd.playing:
 			sfx_crowd.play()
 	if mode == "tournament":
+		if tour_fixture.is_empty() and _tour_load(home):
+			ui.flash_hint("¡Torneo reanudado! Fecha %d de %d"
+				% [tour_pos + 1, tour_fixture.size()], 3.0)
 		if tour_fixture.is_empty():
 			# fixture del torneo: del rival más débil al más fuerte
 			var rest: Array[int] = []
@@ -454,6 +461,8 @@ func start_match(home: int, away: int, m := "friendly") -> void:
 			tour_table.clear()
 			tour_history.clear()
 			tour_scorers.clear()
+			for k in tour_stats:
+				tour_stats[k] = 0
 			for i in RugbyTeams.CLUBS.size():
 				tour_table.append({"pts": 0, "played": 0, "won": 0,
 					"drawn": 0, "lost": 0, "pf": 0, "pa": 0, "bonus": 0})
@@ -615,6 +624,10 @@ func _process(delta: float) -> void:
 			Phase.LINEOUT, Phase.PENALTY, Phase.DROPOUT,
 			Phase.KICKOFF, Phase.MAUL]:
 		_end_half()
+	elif last_play:
+		last_play_t += delta
+		if last_play_t > 12.0:
+			_end_half()   # seguridad: la jugada no puede vivir para siempre
 	# si el juego cortó a otra fase con un forcejeo abierto, cerrarlo
 	if contest_carrier != null and phase != Phase.PLAY:
 		_contest_clear()
@@ -803,6 +816,7 @@ func _check_clock() -> void:
 	if phase == Phase.PLAY:
 		if not last_play:
 			last_play = true
+			last_play_t = 0.0
 			ui.show_message("¡ÚLTIMA JUGADA!", 2.2)
 			ui.commentary("Se cumplió el tiempo — próxima pelota muerta y es todo")
 			_whistle()
@@ -1016,6 +1030,8 @@ func _on_try(team: int) -> void:
 	adv_t = -1.0
 	score[team] += 5
 	tries_n[team] += 1
+	if team == 0:
+		tour_stats.tries += 1
 	last_scoring_team = team
 	conv_spot_x = ball.carrier.global_position.x
 	var scorer := ball.carrier
@@ -1231,6 +1247,9 @@ func _update_conversion(delta: float) -> void:
 				conv_done_flag = true
 				if absf(ball.global_position.x) <= 2.8 and ball.global_position.y >= 3.0:
 					score[conv_team] += conv_pts
+					if conv_team == 0:
+						tour_stats.conv += 1 if conv_pts == 2 else 0
+						tour_stats.pens += 1 if conv_pts == 3 else 0
 					ui.show_message("¡%s! +%d para %s" %
 						["CONVERSIÓN" if conv_pts == 2 else "PENAL", conv_pts,
 						_club_name(conv_team)], 2.2)
@@ -1303,6 +1322,8 @@ func on_tackle(tackler: RugbyPlayer, carrier: RugbyPlayer) -> void:
 		return
 	tackles_n[tackler.team] += 1
 	tackler.stat_tackles += 1
+	if tackler.team == 0:
+		tour_stats.tackles += 1
 	if tackler.dive_t > 0.02 and sfx_slide.stream != null:
 		sfx_slide.play()
 	if tackler.dive_t > 0.02 and rng.randf() < 0.1:
@@ -1922,6 +1943,8 @@ func _event_scrum(feed_team: int, spot: Vector3, msg: String) -> void:
 		0.0, clampf(spot.z, -TRY_Z + 7.0, TRY_Z - 7.0))
 	if feed_team == 0:
 		ui.flash_hint("SCRUM — Q/E salida del 9 · Espacio pick del 8", 2.6)
+	if sfx_scrum.stream != null:
+		sfx_scrum.play()
 	ball.release()
 	ball.freeze = true
 	ball.global_position = pending_spot + Vector3(0, 0.25, 0)
@@ -1997,6 +2020,8 @@ func _resolve_lineout() -> void:
 
 
 func _start_maul(team: int) -> void:
+	if sfx_scrum.stream != null:
+		sfx_scrum.play()
 	maul_team = team
 	maul_dir = float(attack_dir[team])
 	phase = Phase.MAUL
@@ -2203,10 +2228,72 @@ func _tour_next() -> void:
 		var res := "¡TORNEO TERMINADO!\n\nCAMPEÓN: %s\n\n%s\nTu posición: #%d" % [
 			RugbyTeams.CLUBS[champ]["name"], _table_text(),
 			_table_order().find(home_idx) + 1]
+		_tour_delete_save()
 		return_to_menu()
 		menu.flash_result(res)
 		return
+	_tour_save()
 	start_match(home_idx, tour_fixture[tour_pos], "tournament")
+
+
+# guarda el progreso del torneo para reanudarlo después de cerrar el juego
+func _tour_save() -> void:
+	var d := {
+		"club": home_idx,
+		"fixture": Array(tour_fixture),
+		"pos": tour_pos,
+		"wins": tour_wins,
+		"losses": tour_losses,
+		"table": tour_table,
+		"history": tour_history,
+		"scorers": tour_scorers,
+		"stats": tour_stats,
+	}
+	var f := FileAccess.open("user://tournament.save", FileAccess.WRITE)
+	if f != null:
+		f.store_string(JSON.stringify(d))
+
+
+# reanuda un torneo guardado si el club elegido es el mismo
+func _tour_load(club: int) -> bool:
+	var f := FileAccess.open("user://tournament.save", FileAccess.READ)
+	if f == null:
+		return false
+	var d: Variant = JSON.parse_string(f.get_as_text())
+	if typeof(d) != TYPE_DICTIONARY or int(d.get("club", -1)) != club:
+		return false
+	tour_fixture.clear()
+	for x in d.get("fixture", []):
+		tour_fixture.append(int(x))
+	if tour_fixture.is_empty():
+		return false
+	tour_pos = int(d.get("pos", 0))
+	if tour_pos >= tour_fixture.size():
+		return false
+	tour_wins = int(d.get("wins", 0))
+	tour_losses = int(d.get("losses", 0))
+	tour_table.clear()
+	for row in d.get("table", []):
+		var r := {}
+		for k in row:
+			r[k] = int(row[k])
+		tour_table.append(r)
+	tour_history.clear()
+	for fecha in d.get("history", []):
+		tour_history.append(Array(fecha))
+	tour_scorers.clear()
+	for k in d.get("scorers", {}):
+		tour_scorers[k] = int(d["scorers"][k])
+	var st: Dictionary = d.get("stats", {})
+	for k in tour_stats:
+		tour_stats[k] = int(st.get(k, 0))
+	return true
+
+
+func _tour_delete_save() -> void:
+	var p := ProjectSettings.globalize_path("user://tournament.save")
+	if FileAccess.file_exists(p):
+		DirAccess.remove_absolute(p)
 
 
 func _event_dropout(team: int, msg: String) -> void:

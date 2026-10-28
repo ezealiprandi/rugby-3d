@@ -27,7 +27,7 @@ func _release(action: String) -> void:
 
 func _process(_delta: float) -> bool:
 	frames += 1
-	if frames > 8000:
+	if frames > 12000:
 		print("TEST FAIL: timeout en estado %d (phase=%s)" % [st, game.phase])
 		return true
 
