@@ -43,6 +43,7 @@ var jersey_tex: Texture2D = null      # camiseta oficial (patrón URT)
 var jersey_tex_alt: Texture2D = null  # versión alternativa
 var speed_mult := 1.0                 # velocidad según posición
 var break_prob := 0.0                 # prob. de romper el placaje (forwards)
+var kick_offside := false             # quedaste adelante del pateador en una patada
 var sin_bin_t := 0.0                  # tiempo restante en el sin bin
 
 var visual: Node3D
@@ -332,6 +333,13 @@ func _physics_process(delta: float) -> void:
 	kick_anim_t = maxf(0.0, kick_anim_t - delta)
 	froze_t = maxf(0.0, froze_t - delta)
 	step_cd = maxf(0.0, step_cd - delta)
+	# offside de perseguidor: te ponés onside retrocediendo detrás de la
+	# pelota; cuando alguien la toma, se cerró la fase de patada
+	if kick_offside and game.ball != null:
+		var dd := float(game.attack_dir[team])
+		if game.ball.carrier != null or \
+				global_position.z * dd < game.ball.global_position.z * dd - 0.5:
+			kick_offside = false
 	if tackled > 0.0:
 		if self == game.controlled and game.offloader == self \
 				and Input.is_action_just_pressed("pass"):
@@ -473,6 +481,8 @@ func _desired_velocity() -> Vector3:
 				_do_drop_goal()
 			if Input.is_action_just_pressed("grubber"):
 				_do_grubber()
+			if Input.is_action_just_pressed("chipkick"):
+				_do_chip()
 			if Input.is_action_just_pressed("bomb"):
 				_do_bomb()
 			if Input.is_action_just_pressed("crosskick"):
@@ -648,6 +658,12 @@ func _carrier_ai() -> Vector3:
 	if nearest_d > 2.0 and nearest_d < 4.5 and step_cd <= 0.0 \
 			and game.rng.randf() < 0.06:
 		_start_step()
+	# fend de la IA: para en seco al defensor que llega de frente
+	if nearest_d < 2.6 and cool_fend <= 0.0 and game.rng.randf() < 0.025:
+		_do_fend()
+	# amague de la IA: congela defensores y abre el hueco
+	if nearest_d < 4.0 and cool_pass <= 0.0 and game.rng.randf() < 0.012:
+		_do_dummy()
 	if cool_kick <= 0.0 and global_position.z * d > 14.0 \
 			and global_position.z * d < 32.0 and game.rng.randf() < 0.008:
 		_do_grubber()
@@ -753,6 +769,13 @@ func _try_pickup() -> void:
 	var dxz := Vector2(b.global_position.x - global_position.x,
 		b.global_position.z - global_position.z).length()
 	if dxz < r:
+		# perseguidor en offside que toca la pelota → penal para el rival
+		if kick_offside and b.was_kicked and b.last_touch_team == team:
+			kick_offside = false
+			game._event_penalty(1 - team, global_position,
+				"¡PENAL para %s! Perseguidor en offside" \
+				% game._club_name(1 - team))
+			return
 		if b.pass_from != null and b.pass_from.team != team:
 			# intercepcion: el defensor puede atrapar el pase en el aire
 			var ic := 0.05 if self == game.controlled else 0.028
@@ -866,6 +889,14 @@ func _do_bomb() -> void:
 	var dir := Vector3(-global_position.x * 0.01, 0.0, d).normalized()
 	game.ball.bomb(self, dir)
 	cool_kick = 0.8
+
+
+# chip kick: patadita por encima del defensor que viene, a re-agrupar
+func _do_chip() -> void:
+	var d := float(game.attack_dir[team])
+	var dir := (facing * 0.85 + Vector3(0.0, 0.0, d * 0.15)).normalized()
+	game.ball.chip(self, dir)
+	cool_kick = 0.7
 
 
 # cross kick: patada cruzada larga hacia el wing del lado opuesto

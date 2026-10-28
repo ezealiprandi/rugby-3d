@@ -126,6 +126,7 @@ func grubber(kicker: RugbyPlayer, dir: Vector3) -> void:
 	global_position = kicker.carry_point()
 	linear_velocity = dir * 15.0 + Vector3(0, 1.4, 0)
 	angular_velocity = Vector3(dir.z, 0.0, -dir.x) * 22.0
+	game._mark_kick_offside(kicker)
 
 
 func bomb(kicker: RugbyPlayer, dir: Vector3) -> void:
@@ -137,6 +138,20 @@ func bomb(kicker: RugbyPlayer, dir: Vector3) -> void:
 	global_position = kicker.carry_point()
 	linear_velocity = dir * 8.0 + Vector3(0, 14.5, 0)
 	angular_velocity = Vector3(dir.z, 0.0, -dir.x) * 16.0
+	game._mark_kick_offside(kicker)
+
+
+# chip kick: patadita corta por encima del defensor, a re-agrupar ~12m
+func chip(kicker: RugbyPlayer, dir: Vector3) -> void:
+	release()
+	release_guard = 0.2
+	last_touch_team = kicker.team
+	pass_from = null
+	was_kicked = true
+	global_position = kicker.carry_point()
+	linear_velocity = dir * 8.5 + Vector3(0, 7.0, 0)
+	angular_velocity = Vector3(dir.z, 0.0, -dir.x) * 18.0
+	game._mark_kick_offside(kicker)
 
 func kicked(kicker: RugbyPlayer, dir: Vector3) -> void:
 	release()
@@ -147,6 +162,7 @@ func kicked(kicker: RugbyPlayer, dir: Vector3) -> void:
 	global_position = kicker.carry_point()
 	linear_velocity = dir * 21.0 + Vector3(0, 8.5, 0)
 	angular_velocity = Vector3(dir.z, 0.0, -dir.x) * 14.0
+	game._mark_kick_offside(kicker)
 
 
 # cuero 2048 con grano por ruido nativo, costuras y cordones

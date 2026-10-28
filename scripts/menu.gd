@@ -112,10 +112,11 @@ B — dummy pass (amague que congela defensores)
 J — fend (quitarse el placaje)
 Espacio al ser placado — offload a un apoyo
 C — grubber (patada rasante por el piso)
+N — chip kick (patadita por encima, a re-agrupar)
 V — up and under (patada alta disputada)
 Z — cross kick (al wing del lado opuesto)
 T — en un penal: patada al touch (lineout propio)
-K — patada larga · en un penal: a los palos (+3)
+K — patada larga · en el ruck: box kick del 9 · en un penal: a los palos (+3)
 G — drop goal (en juego, cerca de los palos)
 Espacio ×2 — conversión: dirección y potencia
 Esc — pausa
@@ -135,10 +136,11 @@ B — dummy pass (freezes defenders)
 J — fend
 Space when tackled — offload to a support
 C — grubber kick (along the ground)
+N — chip kick (short kick over the line, regather)
 V — up and under (high contestable kick)
 Z — cross kick (to the far wing)
 T — on a penalty: kick to touch (your lineout)
-K — long kick · on a penalty: kick at goal (+3)
+K — long kick · in the ruck: scrum-half box kick · on a penalty: kick at goal (+3)
 G — drop goal (in open play, near the posts)
 Space ×2 — conversion: direction and power
 Esc — pause

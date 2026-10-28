@@ -225,6 +225,7 @@ func _register_input() -> void:
 	_add_key_action("kick", [KEY_K])
 	_add_key_action("dropgoal", [KEY_G])
 	_add_key_action("fend", [KEY_J])
+	_add_key_action("chipkick", [KEY_N])
 	_add_key_action("confirm", [KEY_ENTER, KEY_KP_ENTER])
 	_add_key_action("restart", [KEY_R])
 	_add_key_action("menu", [KEY_M])
@@ -1812,6 +1813,16 @@ func _ruck_box_kick() -> void:
 	phase = Phase.PLAY
 	settle_t = 0.5
 	jackal_pressed = false
+
+
+# al patear, los compañeros por delante del pateador quedan en offside
+# hasta retroceder detrás de la pelota — si tocan la pelota es penal
+func _mark_kick_offside(kicker: RugbyPlayer) -> void:
+	var d := float(attack_dir[kicker.team])
+	var kz := kicker.global_position.z * d
+	for p in players:
+		if p.team == kicker.team and p != kicker:
+			p.kick_offside = p.global_position.z * d > kz + 0.5
 
 
 # marca: pelota de patada rival atrapada dentro de tus 22
