@@ -504,6 +504,10 @@ func return_to_menu() -> void:
 	tour_fixture.clear()
 	if sfx_crowd.playing:
 		sfx_crowd.stop()
+	if sfx_rain.playing:
+		sfx_rain.stop()
+	if sfx_steps.playing:
+		sfx_steps.stop()
 	menu.start()
 
 
@@ -679,11 +683,13 @@ func _process(delta: float) -> void:
 			if Input.is_action_just_pressed("tackle"):
 				jackal_pressed = true
 			if ruck_team == 0:
-				# sos el medioscrum: elegís a dónde abrir
+				# sos el medioscrum: elegís a dónde abrir o patada del 9
 				if Input.is_action_just_pressed("pass_left"):
 					_ruck_play(-1)
 				elif Input.is_action_just_pressed("pass_right"):
 					_ruck_play(1)
+				elif Input.is_action_just_pressed("kick"):
+					_ruck_box_kick()
 				elif Input.is_action_just_pressed("pass"):
 					_ruck_play(0)
 				elif phase_t <= 0.0:
@@ -965,8 +971,8 @@ func _on_try(team: int) -> void:
 	if scorer != null:
 		scorer.stat_tries += 1
 	celebrating = scorer
-	if scorer != null:
-		scorer.try_dive_t = 1.1
+	if scorer != null and scorer.try_dive_t > 0.0:
+		scorer.try_dive_t = 1.1      # mantiene la palomita si venía volando
 		if sfx_slide.stream != null:
 			sfx_slide.play()
 	if replay_buf.size() > 30:
@@ -1241,6 +1247,9 @@ func on_tackle(tackler: RugbyPlayer, carrier: RugbyPlayer) -> void:
 	carrier.tackled = 1.2
 	if sfx_tackle.stream != null:
 		sfx_tackle.play()
+	# la tribuna reacciona al contacto fuerte, más si es cerca del ingoal
+	var d_try := TRY_Z - absf(carrier.global_position.z)
+	crowd_boost = maxf(crowd_boost, 1.2 if d_try > 20.0 else 2.5)
 	# ventana de offload: el placado puede soltar la pelota a un apoyo
 	offloader = carrier
 	offload_t = 0.5
@@ -1363,7 +1372,10 @@ func _contest_end(win: bool) -> void:
 	if steal:
 		if win:
 			_contest_give_ball(c, 0, "¡ROBO EN EL CONTACTO!")
+			ui.commentary("¡Metió las manos y se quedó con todo!")
+			crowd_boost = 3.0
 		else:
+			ui.commentary("Se tiró encima pero el rival ya la había jugado")
 			_contest_ai_moves_ball(c)
 	else:
 		if win:
@@ -1373,11 +1385,13 @@ func _contest_end(win: bool) -> void:
 			if support != null:
 				ball.throw_to(support, c)
 				ui.flash_hint("¡RETUVISTE! Jugada limpia", 1.8)
+				ui.commentary("Aguantó, la protegió y salió jugando")
 				crowd_boost = 3.5        # la tribuna responde
 			else:
 				_begin_breakdown(c)
 		else:
 			_contest_give_ball(c, 1, "¡TE LA ROBARON!")
+			ui.commentary("Perdió la pelota en el contacto — robo limpio")
 
 
 func _contest_give_ball(c: RugbyPlayer, team: int, msg: String) -> void:
@@ -1472,7 +1486,7 @@ func _begin_breakdown(c: RugbyPlayer) -> void:
 				0.0, spot.z + d * 3.5)   # línea del lado de SU ingoal
 	if c.team == 0:
 		ui.flash_hint(
-			"RUCK — Q abrir izquierda · E abrir derecha · Espacio pick and go",
+			"RUCK — Q/E abrir · Espacio pick and go · K box kick del 9",
 			2.6)
 
 
@@ -1726,6 +1740,29 @@ func _ruck_play(side: int) -> void:
 		if target != null and target != server:
 			server.pass_anim_t = 0.3
 			ball.throw_to(target, server)
+	phase = Phase.PLAY
+	settle_t = 0.5
+	jackal_pressed = false
+
+
+# box kick del 9 desde el ruck: patada alta al espacio, a ganar territorio
+func _ruck_box_kick() -> void:
+	if phase != Phase.BREAKDOWN or ruck_team != 0:
+		return
+	var server: RugbyPlayer = players[8]
+	if server.tackled > 0.0 or server.sin_bin_t > 0.0:
+		server = _nearest(0, pending_spot, null, 999.0)
+	if server == null:
+		_resolve_breakdown()
+		return
+	ball.set_carrier(server)
+	var d := float(attack_dir[0])
+	# alto y profundo, sesgado al lado ancho como un box kick real
+	var kdir := Vector3(-signf(pending_spot.x) * 0.3, 0.0, d).normalized()
+	ball.bomb(server, kdir)
+	_kick_sfx()
+	ui.flash_hint("¡BOX KICK del 9!")
+	ui.commentary("El 9 despeja de atrás del ruck — carrera por el alto")
 	phase = Phase.PLAY
 	settle_t = 0.5
 	jackal_pressed = false

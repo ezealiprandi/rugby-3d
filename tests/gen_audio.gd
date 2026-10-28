@@ -156,29 +156,36 @@ func _whistle() -> void:
 
 
 func _crowd() -> void:
-	# hinchada estilo broadcast: base de voces + palmas rítmicas +
-	# oleajes de aliento, loop 8s sin costura
+	# hinchada estilo broadcast: murmullo grave de miles de voces
+	# (filtro muy cerrado para que NO suene a lluvia), oleajes de
+	# aliento, modulación tipo canto y palmas graves — loop 8s
 	var n := int(RATE * 8.0)
 	var data := PackedByteArray()
 	data.resize(n)
-	var acc := 0.0
+	var acc1 := 0.0
+	var acc2 := 0.0
 	var clap_env := 0.0
-	var next_clap := int(RATE * 0.4)
+	var clap_ph := 0.0
+	var next_clap := int(RATE * 0.5)
 	for i in n:
 		var t := float(i) / RATE
-		# base: murmullo de voces filtrado
-		acc = acc * 0.93 + rng.randf_range(-1.0, 1.0) * 0.07
-		# palmas aisladas: transitorios secos cada ~0.45s con jitter
+		# dos etapas de lowpass → murmullo oscuro, sin siseo
+		acc1 = acc1 * 0.985 + rng.randf_range(-1.0, 1.0) * 0.015
+		acc2 = acc2 * 0.975 + rng.randf_range(-1.0, 1.0) * 0.025
+		# canto colectivo: la amplitud respira a ritmo de frase (~1.2Hz)
+		var chant := 0.5 + 0.5 * sin(TAU * 1.15 * t + sin(TAU * 0.31 * t))
+		# oleajes de tribuna
+		var swell := 0.68 + 0.24 * sin(TAU * 0.11 * t) \
+			+ 0.08 * sin(TAU * 0.033 * t + 1.7)
+		# palmas como golpes graves (seno decaído, no ruido = no siseo)
 		if i >= next_clap:
 			clap_env = 1.0
-			next_clap = i + int(RATE * rng.randf_range(0.3, 0.62))
-		var clap := rng.randf_range(-1.0, 1.0) * clap_env * 0.55
-		clap_env *= exp(-3.0 / RATE * 40.0) * 0.92
-		# oleaje de aliento tipo tribuna real
-		var swell := 0.72 + 0.22 * sin(TAU * 0.13 * t) \
-			+ 0.1 * sin(TAU * 0.037 * t + 1.7) \
-			+ 0.06 * sin(TAU * 0.51 * t)
-		var s := acc * 10.0 * swell + clap * (0.5 + 0.5 * swell)
+			next_clap = i + int(RATE * rng.randf_range(0.55, 0.95))
+		clap_ph += TAU * 190.0 / RATE
+		var clap := sin(clap_ph) * clap_env * 0.45
+		clap_env *= 0.998
+		var s := (acc1 * 14.0 + acc2 * 5.0) * swell * (0.7 + 0.5 * chant) \
+			+ clap
 		data[i] = int(clampf(128.0 + s * 105.0, 0.0, 255.0))
 	_save_wav("res://assets/crowd.wav", data, true)
 

@@ -2,12 +2,24 @@ class_name RugbyChangelog
 extends RefCounted
 
 # Versión actual del juego — se muestra en el menú y en esta pantalla.
-const VERSION := "v0.6"
+const VERSION := "v0.7"
 
 # Historial de cambios, de la versión más nueva a la más vieja.
 # Para publicar una versión nueva: subir VERSION y agregar una entrada
 # [versión, título, [lista de cambios]] al principio de este array.
 const HISTORY := [
+	["v0.7", "Forcejeo + audio + licencia", [
+		"Forcejeo post-placaje: machacá ESPACIO ×10 para retener si te placan, o apretá F en 3s y ganá la barra de timing ×3 para robar",
+		"La pelota del forcejeo sale al apoyo más lejos de rivales (sin bucle)",
+		"Box kick del 9 desde el ruck con K",
+		"Pelota anclada a las manos en todas las poses",
+		"Hinchada con timbre de voces que loopea todo el partido (fix import)",
+		"Tribuna que reacciona: tries, replays, placajes, robos, intercepciones",
+		"Replay con sonido de estadio + cheer de reacción",
+		"Fix: palomita solo cuando la tirás vos, no automática",
+		"Pantalla NOVEDADES en el menú + versionado 0.x de alfa",
+		"Licencia propietaria: distribución/comercialización con permiso del autor",
+	]],
 	["v0.6", "Presentación + jugabilidad pulida", [
 		"Replay animado: se graban las rotaciones de brazos/piernas — ya no se ven jugadores congelados",
 		"Intro de repetición estilo noticiero con espera de 3 segundos",

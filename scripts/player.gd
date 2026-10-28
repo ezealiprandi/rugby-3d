@@ -760,6 +760,7 @@ func _try_pickup() -> void:
 				b.set_carrier(self)
 				game.ui.flash_hint("¡¡INTERCEPCIÓN de %s!!" % game._club_name(team))
 				game.ui.commentary("¡Lee el pase y sale disparado!")
+				game.crowd_boost = 3.0
 			return
 		if b.pass_from != null and b.pass_from.team == team and self != game.controlled:
 			var chance := 0.1 if b.pass_from != game.controlled else 0.04
