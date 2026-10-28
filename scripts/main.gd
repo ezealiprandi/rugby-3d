@@ -140,6 +140,10 @@ var contest_sway := 1.0
 var contest_speed := 1.0
 var contest_zone := Vector2(0.5, 0.82)
 var crowd_boost := 0.0        # sube el volumen de la tribuna un momento
+var conv_clock := 0.0         # shot clock de la patada (60s estilo Rugby 25)
+var last_play := false        # tiempo cumplido: el tiempo termina al morir la jugada
+var whistle_pend := 0         # silbatazos encadenados (triple al final de tiempo)
+var whistle_pend_t := 0.0
 
 # ventaja del árbitro
 var adv_t := -1.0
@@ -594,6 +598,18 @@ func _process(delta: float) -> void:
 		else:
 			start_match(home_idx, away_idx, mode)
 		return
+	# silbatazos encadenados (triple al final de cada tiempo)
+	if whistle_pend > 0:
+		whistle_pend_t -= delta
+		if whistle_pend_t <= 0.0:
+			whistle_pend -= 1
+			whistle_pend_t = 0.3
+			_whistle()
+	# tiempo cumplido: la primera pelota muerta cierra el tiempo
+	if last_play and phase in [Phase.BREAKDOWN, Phase.SCRUM,
+			Phase.LINEOUT, Phase.PENALTY, Phase.DROPOUT,
+			Phase.KICKOFF, Phase.MAUL]:
+		_end_half()
 	# si el juego cortó a otra fase con un forcejeo abierto, cerrarlo
 	if contest_carrier != null and phase != Phase.PLAY:
 		_contest_clear()
@@ -773,6 +789,19 @@ func _clock_speed() -> float:
 func _check_clock() -> void:
 	if clock < half_len or mode == "practice":
 		return
+	# regla real: el tiempo termina cuando muere la jugada, no en pleno ataque
+	if phase == Phase.PLAY:
+		if not last_play:
+			last_play = true
+			ui.show_message("¡ÚLTIMA JUGADA!", 2.2)
+			ui.commentary("Se cumplió el tiempo — próxima pelota muerta y es todo")
+			_whistle()
+		return
+	_end_half()
+
+
+func _end_half() -> void:
+	last_play = false
 	if half == 1:
 		half = 2
 		clock = 0.0
@@ -780,6 +809,7 @@ func _check_clock() -> void:
 		phase = Phase.BETWEEN
 		phase_t = 3.0
 		_whistle()
+		whistle_pend = 2        # triple silbato de entretiempo
 		var htot: float = poss_t[0] + poss_t[1]
 		var hposs := ""
 		if htot > 1.0:
@@ -803,6 +833,7 @@ func _check_clock() -> void:
 	else:
 		phase = Phase.END
 		_whistle()
+		whistle_pend = 2        # triple silbato de final
 		var total: float = poss_t[0] + poss_t[1]
 		var poss_pct := ""
 		if total > 1.0:
@@ -1089,6 +1120,7 @@ func _setup_kick_at_goal(pts: int, team: int, spot: Vector3) -> void:
 		Vector3(0, 3.0, conv_dir * TRY_Z))
 	phase = Phase.CONVERSION
 	conv_done_flag = false
+	conv_clock = 60.0 if conv_team == 0 else 0.0   # shot clock reglamentario
 	if conv_team == 0:
 		conv_state = ConvState.AIM
 		conv_aim = 0.0
@@ -1100,6 +1132,17 @@ func _setup_kick_at_goal(pts: int, team: int, spot: Vector3) -> void:
 
 
 func _update_conversion(delta: float) -> void:
+	# shot clock: si se agota en AIM/POWER, la patada se pierde
+	if conv_clock > 0.0 and (conv_state == ConvState.AIM \
+			or conv_state == ConvState.POWER):
+		conv_clock -= delta
+		ui.conv_set_clock(conv_clock)
+		if conv_clock <= 0.0:
+			ui.show_message("¡Se acabó el tiempo! Patada perdida", 2.2)
+			ui.conv_hide()
+			conv_state = ConvState.DONE
+			conv_t = 1.2
+			return
 	match conv_state:
 		ConvState.AIM:
 			# aim directo con A/D: mueve la retícula sobre la línea de gol
@@ -1192,7 +1235,10 @@ func _update_conversion(delta: float) -> void:
 				ui.conv_hide()
 				if conv_kicker != null:
 					conv_kicker.marker.visible = false
-				reset_for_kickoff(1 - conv_team)
+				if last_play:
+					_end_half()    # sin kickoff: la conversión era lo último
+				else:
+					reset_for_kickoff(1 - conv_team)
 
 
 func _conv_execute() -> void:

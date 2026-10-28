@@ -29,6 +29,7 @@ var hint_t := 0.0
 # UI de conversión (estilo Rugby 25)
 var conv_panel: Panel
 var conv_instr: Label
+var conv_clock_lbl: Label
 var aim_needle: ColorRect
 var power_fill: ColorRect
 var height_fill: ColorRect
@@ -215,6 +216,12 @@ func _build_conversion_ui() -> void:
 	conv_instr.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	conv_instr.add_theme_font_size_override("font_size", 18)
 	vb.add_child(conv_instr)
+
+	conv_clock_lbl = Label.new()
+	conv_clock_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	conv_clock_lbl.add_theme_font_size_override("font_size", 14)
+	conv_clock_lbl.add_theme_color_override("font_color", Color(1.0, 0.75, 0.3))
+	vb.add_child(conv_clock_lbl)
 
 	var aim_lbl := Label.new()
 	aim_lbl.text = "DIRECCIÓN"
@@ -692,6 +699,18 @@ func conv_set_power(v: float) -> void:
 
 func conv_set_instr(t: String) -> void:
 	conv_instr.text = t
+
+
+# reloj de patada estilo broadcast: cuenta regresiva del shot clock
+func conv_set_clock(t: float) -> void:
+	if conv_clock_lbl == null:
+		return
+	if t <= 0.0:
+		conv_clock_lbl.text = ""
+	elif t <= 10.0:
+		conv_clock_lbl.text = "⏱ ¡%.0fs!" % t
+	else:
+		conv_clock_lbl.text = "⏱ %.0fs" % t
 
 
 # ─── overlay broadcast: viñeta, bug TV, presentador, letterbox, scorer ──────
