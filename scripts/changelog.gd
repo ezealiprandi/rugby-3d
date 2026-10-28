@@ -2,12 +2,28 @@ class_name RugbyChangelog
 extends RefCounted
 
 # Versión actual del juego — se muestra en el menú y en esta pantalla.
-const VERSION := "v0.7"
+const VERSION := "v0.8"
 
 # Historial de cambios, de la versión más nueva a la más vieja.
 # Para publicar una versión nueva: subir VERSION y agregar una entrada
 # [versión, título, [lista de cambios]] al principio de este array.
 const HISTORY := [
+	["v0.8", "Auditoría Rugby 25 — secciones 2 a 7", [
+		"Chip kick con N: patadita corta por encima del defensor a re-agrupar",
+		"Offside de perseguidores: el compañero por delante del pateador que toca la pelota → penal",
+		"La IA usa fend y dummy pass, no solo sidestep",
+		"Kick clock 60s en conversiones, triple silbato, última jugada real",
+		"Pirotecnia en el túnel al salir los equipos",
+		"Banderas gigantes en la tribuna principal con los colores de cada club",
+		"Flashes de fotógrafos detrás del in-goal cuando se apoya un try",
+		"Scrum con empuje real bidireccional: el pack rival puede dominar (15%) y eso duplica el tight head",
+		"Robo de lineout del usuario: el largo arriesga más (22%), el corto es seguro (8%), el maul medio (15%)",
+		"Pick and go casi seguro cerca del in-goal (75%)",
+		"Defensa con drift: la línea se corre hacia donde va el ataque lateralmente",
+		"Held up en el in-goal: placado sin apoyar → goal-line dropout",
+		"50/22: patada desde tu campo que sale en el 22 rival → tirás vos",
+		"Knock-on deliberado = penal cuando el defensor corta el pase sin atrapar",
+	]],
 	["v0.7", "Forcejeo + audio + licencia", [
 		"Forcejeo post-placaje: machacá ESPACIO ×10 para retener si te placan, o apretá F en 3s y ganá la barra de timing ×3 para robar",
 		"La pelota del forcejeo sale al apoyo más lejos de rivales (sin bucle)",

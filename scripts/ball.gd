@@ -7,6 +7,7 @@ var release_guard := 0.0
 var last_touch_team := -1
 var pass_from: RugbyPlayer = null   # usado para knock-on en la recepción
 var was_kicked := false            # viene de una patada (para la marca)
+var kick_origin_z := 0.0           # dónde se pateó (para la regla del 50/22)
 
 
 func _ready() -> void:
@@ -123,6 +124,7 @@ func grubber(kicker: RugbyPlayer, dir: Vector3) -> void:
 	last_touch_team = kicker.team
 	pass_from = null
 	was_kicked = true
+	kick_origin_z = kicker.global_position.z
 	global_position = kicker.carry_point()
 	linear_velocity = dir * 15.0 + Vector3(0, 1.4, 0)
 	angular_velocity = Vector3(dir.z, 0.0, -dir.x) * 22.0
@@ -135,6 +137,7 @@ func bomb(kicker: RugbyPlayer, dir: Vector3) -> void:
 	last_touch_team = kicker.team
 	pass_from = null
 	was_kicked = true
+	kick_origin_z = kicker.global_position.z
 	global_position = kicker.carry_point()
 	linear_velocity = dir * 8.0 + Vector3(0, 14.5, 0)
 	angular_velocity = Vector3(dir.z, 0.0, -dir.x) * 16.0
@@ -148,6 +151,7 @@ func chip(kicker: RugbyPlayer, dir: Vector3) -> void:
 	last_touch_team = kicker.team
 	pass_from = null
 	was_kicked = true
+	kick_origin_z = kicker.global_position.z
 	global_position = kicker.carry_point()
 	linear_velocity = dir * 8.5 + Vector3(0, 7.0, 0)
 	angular_velocity = Vector3(dir.z, 0.0, -dir.x) * 18.0
@@ -159,6 +163,7 @@ func kicked(kicker: RugbyPlayer, dir: Vector3) -> void:
 	last_touch_team = kicker.team
 	pass_from = null
 	was_kicked = true
+	kick_origin_z = kicker.global_position.z
 	global_position = kicker.carry_point()
 	linear_velocity = dir * 21.0 + Vector3(0, 8.5, 0)
 	angular_velocity = Vector3(dir.z, 0.0, -dir.x) * 14.0

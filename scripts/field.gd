@@ -65,6 +65,7 @@ func _build() -> void:
 	_build_crowd()
 	_build_flags()
 	_build_screens()
+	_build_banners()
 	_build_photographers()
 
 
@@ -786,6 +787,112 @@ func crowd_surge() -> void:
 	wave_amp = 1.0
 
 
+var pyro_nodes: Array[GPUParticles3D] = []
+var flash_nodes: Array[GPUParticles3D] = []
+var banner_mats: Array[StandardMaterial3D] = []
+
+
+# columnas de pirotecnia en el túnel de ingreso (salida de los equipos)
+func fireworks() -> void:
+	if pyro_nodes.is_empty():
+		for sx in [-1.0, 1.0]:
+			var g := GPUParticles3D.new()
+			g.amount = 140
+			g.lifetime = 1.5
+			g.one_shot = true
+			g.explosiveness = 0.9
+			g.visibility_aabb = AABB(Vector3(-30, -5, -30),
+				Vector3(60, 60, 60))
+			var pm := ParticleProcessMaterial.new()
+			pm.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
+			pm.emission_sphere_radius = 0.8
+			pm.direction = Vector3(0.0, 1.0, 0.0)
+			pm.spread = 28.0
+			pm.initial_velocity_min = 14.0
+			pm.initial_velocity_max = 22.0
+			pm.gravity = Vector3(0.0, -7.0, 0.0)
+			pm.damping_min = 1.5
+			pm.damping_max = 2.5
+			var grad := Gradient.new()
+			grad.set_color(0, Color(1.0, 0.95, 0.6))
+			grad.add_point(0.5, Color(1.0, 0.6, 0.1))
+			grad.set_color(1, Color(0.9, 0.25, 0.05, 0.0))
+			var gt := GradientTexture1D.new()
+			gt.gradient = grad
+			pm.color_ramp = gt
+			g.process_material = pm
+			var q := QuadMesh.new()
+			q.size = Vector2(0.3, 0.3)
+			var cm := StandardMaterial3D.new()
+			cm.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
+			q.material = cm
+			g.draw_pass_1 = q
+			g.position = Vector3(-44.0, 1.0, sx * 10.0)
+			add_child(g)
+			pyro_nodes.append(g)
+	for g in pyro_nodes:
+		g.restart()
+
+
+# flashes de fotógrafos tras el in-goal donde se apoyó el try
+func photo_flash(z_sign: float) -> void:
+	if flash_nodes.is_empty():
+		for sx in [-1.0, 1.0]:
+			var g := GPUParticles3D.new()
+			g.amount = 60
+			g.lifetime = 0.9
+			g.one_shot = true
+			g.explosiveness = 0.95
+			g.visibility_aabb = AABB(Vector3(-40, -5, -40),
+				Vector3(80, 40, 80))
+			var pm := ParticleProcessMaterial.new()
+			pm.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
+			pm.emission_sphere_radius = 6.0
+			pm.direction = Vector3(0.0, 1.0, 0.0)
+			pm.spread = 40.0
+			pm.initial_velocity_min = 2.0
+			pm.initial_velocity_max = 5.0
+			pm.gravity = Vector3.ZERO
+			var grad := Gradient.new()
+			grad.set_color(0, Color(1.0, 1.0, 1.0))
+			grad.set_color(1, Color(0.8, 0.85, 1.0, 0.0))
+			var gt := GradientTexture1D.new()
+			gt.gradient = grad
+			pm.color_ramp = gt
+			g.process_material = pm
+			var q := QuadMesh.new()
+			q.size = Vector2(0.5, 0.5)
+			var cm := StandardMaterial3D.new()
+			cm.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
+			q.material = cm
+			g.draw_pass_1 = q
+			add_child(g)
+			flash_nodes.append(g)
+	for i in flash_nodes.size():
+		flash_nodes[i].position = Vector3(-38.0 + i * 76.0, 1.6,
+			z_sign * 63.0)
+		flash_nodes[i].restart()
+
+
+# banderas gigantes colgadas del frente de la tribuna principal,
+# una por club — se tiñen en tint_crowd
+func _build_banners() -> void:
+	for i in 2:
+		var bm := StandardMaterial3D.new()
+		bm.albedo_color = Color(0.8, 0.8, 0.8)
+		bm.roughness = 0.9
+		bm.cull_mode = BaseMaterial3D.CULL_DISABLED
+		var b := MeshInstance3D.new()
+		var q := QuadMesh.new()
+		q.size = Vector2(14.0, 4.2)
+		b.mesh = q
+		b.material_override = bm
+		b.position = Vector3(44.2, 7.5, -9.0 + i * 18.0)
+		b.rotation.y = -PI / 2.0
+		add_child(b)
+		banner_mats.append(bm)
+
+
 # Tiñe parte de la hinchada con los colores de los clubes que juegan.
 func tint_crowd(home_c: Color, away_c: Color) -> void:
 	for i in flag_mats.size():
@@ -794,6 +901,8 @@ func tint_crowd(home_c: Color, away_c: Color) -> void:
 		var sc: Color = home_c if i == 0 else away_c
 		screen_mats[i].albedo_color = sc
 		screen_mats[i].emission = sc
+	for i in banner_mats.size():
+		banner_mats[i].albedo_color = home_c if i == 0 else away_c
 	if crowd_mm == null:
 		return
 	var rng := RandomNumberGenerator.new()

@@ -119,6 +119,8 @@ const POS_NAMES := ["Pilar", "Hooker", "Pilar", "Segunda", "Segunda",
 var maul_team := -1
 var maul_dir := 1.0
 var pending_maul_team := -1   # se arma cuando el catcher agarra el lineout
+var scrum_dom := 1.0          # 1 = pack que introduce empuja, -1 = lo empujan
+var scrum_dom_ann := false
 var jackal_pressed := false
 var settle_t := 0.0                  # defensores aguantan tras el ruck
 var opt_camera := 0                  # 0 broadcast · 1 cercana · 2 lejana  # el jugador apretó F para competir en el ruck
@@ -471,6 +473,8 @@ func start_match(home: int, away: int, m := "friendly") -> void:
 	reset_for_kickoff(first_kicker)
 	phase = Phase.PRESENT            # formación lista; orbitamos el estadio
 	phase_t = 4.2
+	if field != null:
+		field.fireworks()            # pirotecnia de salida al campo
 	ui.commentary("Moneda al aire: %s pone la pelota en juego"
 		% _club_name(first_kicker))
 	var tod_msg := ""
@@ -714,9 +718,14 @@ func _process(delta: float) -> void:
 			elif phase_t <= 0.0:
 				_resolve_breakdown()
 		Phase.SCRUM:
-			# los packs empujan: el scrum gana metros
-			pending_spot.z += float(attack_dir[pending_team]) * 1.3 * delta
+			# los packs empujan: el dominante gana metros
+			var push_dir := float(attack_dir[pending_team]) * scrum_dom
+			pending_spot.z += push_dir * 1.3 * delta
 			pending_spot.z = clampf(pending_spot.z, -TRY_Z + 6.0, TRY_Z - 6.0)
+			if scrum_dom < 0.0 and not scrum_dom_ann:
+				scrum_dom_ann = true
+				ui.show_message("¡El pack de %s gana el empuje!"
+					% _club_name(1 - pending_team), 2.0)
 			if pending_team == 0:
 				if Input.is_action_just_pressed("pass_left"):
 					_scrum_play(-1)
@@ -940,6 +949,16 @@ func _check_boundaries() -> void:
 				drop_goal_team = -1
 		if absf(bp.x) > FIELD_HALF_W + 0.3:
 			var recv := 1 - ball.last_touch_team if ball.last_touch_team >= 0 else 0
+			# 50/22: patada desde tu propia mitad que sale al touch dentro
+			# del 22 rival → el equipo que pateó tira el lineout
+			if ball.was_kicked and ball.last_touch_team >= 0:
+				var ad := float(attack_dir[ball.last_touch_team])
+				if ball.kick_origin_z * ad < 0.0 and bp.z * ad > TRY_Z - 22.0:
+					_event_lineout(ball.last_touch_team, bp.z, signf(bp.x),
+						"¡¡50/22!! Lineout para %s" % _club_name(ball.last_touch_team))
+					crowd_boost = 3.5
+					ui.commentary("¡Patada de oro! El atacante tira el lineout")
+					return
 			_event_lineout(recv, bp.z, signf(bp.x),
 				"¡Touch! Lineout para %s" % _club_name(recv))
 		elif absf(bp.z) > DEAD_Z:
@@ -1028,6 +1047,7 @@ func _on_try(team: int) -> void:
 		sfx_cheer.play()
 	if field != null:
 		field.crowd_surge()
+		field.photo_flash(signf(scorer.global_position.z))
 	_confetti(scorer.global_position,
 		RugbyTeams.CLUBS[home_idx if team == 0 else away_idx]["primary"])
 	var scorer_txt := ""
@@ -1294,6 +1314,15 @@ func on_tackle(tackler: RugbyPlayer, carrier: RugbyPlayer) -> void:
 	carrier.tackled = 1.2
 	if sfx_tackle.stream != null:
 		sfx_tackle.play()
+	# held up: placado dentro del in-goal sin apoyar → goal-line dropout
+	if carrier.global_position.z * float(attack_dir[carrier.team]) > TRY_Z:
+		ball.release()
+		ui.show_message("¡HELD UP! Lo aguantaron en el in-goal", 2.4)
+		ui.commentary("¡Defensa enorme! No lo dejó apoyar")
+		crowd_boost = 3.0
+		_event_dropout(1 - carrier.team,
+			"Goal-line dropout para %s" % _club_name(1 - carrier.team))
+		return
 	# la tribuna reacciona al contacto fuerte, más si es cerca del ingoal
 	var d_try := TRY_Z - absf(carrier.global_position.z)
 	crowd_boost = maxf(crowd_boost, 1.2 if d_try > 20.0 else 2.5)
@@ -1680,8 +1709,12 @@ func _resolve_breakdown() -> void:
 		_event_penalty(ruck_team, adv,
 			"¡PENAL para %s! Infracción en el ruck" % _club_name(ruck_team))
 		return
-	# pick and go: un forward cerca del ruck puede picar y avanzar
-	if pending_team == ruck_team and rng.randf() < 0.4:
+	# pick and go: un forward cerca del ruck puede picar y avanzar;
+	# a menos de 10m del in-goal pican casi siempre (pick al pie del palo)
+	var pick_chance := 0.4
+	if absf(pending_spot.z) > TRY_Z - 10.0:
+		pick_chance = 0.75
+	if pending_team == ruck_team and rng.randf() < pick_chance:
 		var f := _nearest_forward(pending_team, pending_spot, 4.0)
 		if f != null:
 			ball.set_carrier(f)
@@ -1739,6 +1772,20 @@ func _lineout_play(opt: int) -> void:
 	var hooker := players[1]
 	ball.freeze = false
 	pending_maul_team = -1
+	# robo del rival: el largo es el más riesgoso, el corto el más seguro
+	var steal: float = [0.08, 0.22, 0.15][opt]
+	if rng.randf() < steal:
+		var thief := players[4 + TEAM_SIZE]
+		if thief.tackled > 0.0:
+			thief = _nearest(1, pending_spot, null, 999.0)
+		if thief != null:
+			ball.throw_to(thief, hooker)
+			ball.pass_from = null
+			ui.show_message("¡ROBO en el lineout! %s se queda con la pelota"
+				% _club_name(1), 2.2)
+			_whistle()
+			phase = Phase.PLAY
+			return
 	if opt == 1:
 		var ten := players[9]
 		ball.throw_to(ten, hooker)
@@ -1868,6 +1915,9 @@ func _event_scrum(feed_team: int, spot: Vector3, msg: String) -> void:
 	ui.show_message(msg, 2.2)
 	_whistle()
 	pending_team = feed_team
+	# dominancia del pack: 85% el que introduce empuja, 15% lo empujan
+	scrum_dom = -1.0 if rng.randf() < 0.15 else 1.0
+	scrum_dom_ann = false
 	pending_spot = Vector3(clampf(spot.x, -FIELD_HALF_W + 6.0, FIELD_HALF_W - 6.0),
 		0.0, clampf(spot.z, -TRY_Z + 7.0, TRY_Z - 7.0))
 	if feed_team == 0:
@@ -1882,7 +1932,8 @@ func _event_scrum(feed_team: int, spot: Vector3, msg: String) -> void:
 
 
 func _resolve_scrum() -> void:
-	if rng.randf() < 0.08:
+	var th_chance := 0.08 if scrum_dom > 0.0 else 0.18
+	if rng.randf() < th_chance:
 		# tight head: el pack rival roba la introducción
 		var tn := players[8 + (1 - pending_team) * TEAM_SIZE]
 		ball.set_carrier(tn)

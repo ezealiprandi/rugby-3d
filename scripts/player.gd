@@ -752,9 +752,11 @@ func _defense_ai() -> Vector3:
 		return _seek(Vector3(c.global_position.x * 0.5, 0.0,
 			clampf(c.global_position.z + cdir * 20.0, -54.0, 54.0)),
 			AI_JOG * speed_mult)
-	# linea defensiva chata sobre el offside, corriendose hacia el balon
+	# linea defensiva chata sobre el offside con drift: se corre hacia
+	# donde se mueve lateralmente el ataque, no solo hacia la pelota
 	var lane := lerpf(-30.0, 30.0, index / 14.0)
-	lane = clampf(lane + c.global_position.x * 0.35, -31.0, 31.0)
+	var drift := c.global_position.x * 0.35 + c.velocity.x * 0.35
+	lane = clampf(lane + drift, -31.0, 31.0)
 	return _seek(Vector3(lane, 0.0, offside_z - cdir * 0.6),
 		AI_JOG * rating * speed_mult)
 
@@ -784,6 +786,11 @@ func _try_pickup() -> void:
 				game.ui.flash_hint("¡¡INTERCEPCIÓN de %s!!" % game._club_name(team))
 				game.ui.commentary("¡Lee el pase y sale disparado!")
 				game.crowd_boost = 3.0
+			elif game.rng.randf() < 0.05:
+				# metió la mano y la tocó sin atraparla → knock-on deliberado
+				game._event_penalty(b.pass_from.team, global_position,
+					"¡PENAL para %s! Knock-on deliberado"
+					% game._club_name(b.pass_from.team))
 			return
 		if b.pass_from != null and b.pass_from.team == team and self != game.controlled:
 			var chance := 0.1 if b.pass_from != game.controlled else 0.04
